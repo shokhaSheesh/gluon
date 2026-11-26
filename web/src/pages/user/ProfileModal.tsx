@@ -2,11 +2,11 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import { CreditCard, Globe, KeyRound, Landmark, LogOut, Pencil, Plus, Trash2, User, Users, UserCog, Wallet, X, Check, Upload } from 'lucide-react';
 import { BrandMark, ConfirmModal, Field, Input, Modal, PasswordInput, PhoneInput, Select } from '../../components/ui';
-import { BANKS, BUSINESS_CATEGORIES, CARDS, EMPLOYEES, PERMISSIONS, ROLES } from '../../data/mock';
+import { BANKS, BUSINESS_CATEGORIES, EMPLOYEES, PERMISSIONS, ROLES } from '../../data/mock';
 import { LANGS } from '../../lib/i18n';
 import { useApp } from '../../lib/store';
 import { OtpBlock } from '../auth/OtpStep';
-import { useBilling } from '../../lib/billing';
+import { cardBrand, useBilling } from '../../lib/billing';
 import { ACCOUNTS, maskAccount } from '../../data/operations';
 import { ACC_LABEL, DEMO_CLIENT_ID, KAPITAL_CLIENT_ID, useMerchant } from '../../lib/merchant';
 import './profile.css';
@@ -268,47 +268,64 @@ function BankAccounts() {
 
 function Cards() {
   const { toast } = useApp();
-  const [cards, setCards] = useState(CARDS);
-  const [main, setMain] = useState('c1');
+  const b = useBilling();
   const [del, setDel] = useState<string | null>(null);
-  const [edit, setEdit] = useState<string | null>(null);
-  const editing = cards.find((c) => c.id === edit);
-  if (editing) {
+  const [edit, setEdit] = useState<string | 'new' | null>(null);
+  const [f, setF] = useState({ number: '', exp: '', name: '' });
+  const [err, setErr] = useState<Record<string, string>>({});
+  const digits = (v: string) => v.replace(/\D/g, '');
+  const editing = b.cards.find((c) => c.id === edit);
+  const open = (id: string | 'new') => { const c = b.cards.find((x) => x.id === id); setF(c ? { number: c.number, exp: c.exp, name: c.name } : { number: '', exp: '', name: '' }); setErr({}); setEdit(id); };
+  if (edit) {
+    const n = digits(f.number);
+    const save = () => {
+      const e: Record<string, string> = {};
+      if (!editing && n.length !== 16) e.number = 'Карта неправильно введена';
+      if (!/^\d{2}\/\d{2}$/.test(f.exp) || Number(f.exp.slice(0, 2)) > 12) e.exp = 'Формат ММ/ГГ';
+      if (!editing && b.cards.some((c) => digits(c.number) === n)) e.number = 'Эта карта уже добавлена';
+      setErr(e);
+      if (Object.keys(e).length) return;
+      if (editing) { b.updateCard(editing.id, { exp: f.exp, name: f.name.trim() || editing.name }); toast('success', 'Карта обновлена'); }
+      else { b.addCard({ number: n.replace(/(\d{4})(?=\d)/g, '$1 '), exp: f.exp, brand: cardBrand(n), name: f.name.trim() || 'Карта' }); toast('success', 'Карта добавлена'); }
+      setEdit(null);
+    };
     return (
       <>
-        <h2 className="h4">Карты</h2>
+        <h2 className="h4">{editing ? 'Карта' : 'Новая карта'}</h2>
         <div className="col gap-16 pm-form">
-          <Field label="Номер карты"><Input value={editing.number} left={<CardBrand brand={editing.brand} />} readOnly /></Field>
-          <div className="row gap-12">
-            <div className="grow"><Field label="Срок"><Input defaultValue={editing.exp} /></Field></div>
-            <div className="grow"><Field label="Название"><Input defaultValue={editing.name} /></Field></div>
+          <Field label="Номер карты" error={err.number}><Input value={editing ? editing.number : n.slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ')} onChange={(e) => setF({ ...f, number: e.target.value })} placeholder="0000 0000 0000 0000" inputMode="numeric" readOnly={!!editing} error={!!err.number}
+            left={editing ? <CardBrand brand={editing.brand} /> : n.length >= 4 ? <CardBrand brand={cardBrand(n)} /> : undefined} /></Field>
+          <div className="row gap-12" style={{ alignItems: 'flex-start' }}>
+            <div className="grow"><Field label="Срок" error={err.exp}><Input value={f.exp} placeholder="ММ/ГГ" onChange={(e) => { const d = digits(e.target.value).slice(0, 4); setF({ ...f, exp: d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d }); }} error={!!err.exp} /></Field></div>
+            <div className="grow"><Field label="Название"><Input value={f.name} placeholder="Например: Основная карта" onChange={(e) => setF({ ...f, name: e.target.value })} /></Field></div>
           </div>
         </div>
-        <Footer onBack={() => setEdit(null)} onSave={() => { setEdit(null); toast('success', 'Карта обновлена'); }} />
+        <Footer onBack={() => setEdit(null)} onSave={save} />
       </>
     );
   }
   return (
     <>
-      <div className="row between"><h2 className="h4">Карты</h2><button className="btn btn-primary btn-sm"><Plus size={16} /> Добавить карту</button></div>
+      <div className="row between"><h2 className="h4">Карты</h2><button className="btn btn-primary btn-sm" onClick={() => open('new')}><Plus size={16} /> Добавить карту</button></div>
       <div className="col mt-16">
-        {cards.map((c) => (
+        {b.cards.map((c) => (
           <div key={c.id} className="row between pm-row">
             <label className="row gap-12" style={{ cursor: 'pointer' }}>
-              <input type="radio" checked={main === c.id} onChange={() => setMain(c.id)} style={{ accentColor: 'var(--primary)' }} />
+              <input type="radio" checked={b.mainCard === c.id} onChange={() => b.setMainCard(c.id)} style={{ accentColor: 'var(--primary)' }} />
               <CardBrand brand={c.brand} />
               <div><p className="medium t-sm">{c.number}</p><p className="t-xs muted">{c.exp} · {c.name}</p></div>
             </label>
             <div className="row gap-8">
-              {main === c.id && <span className="badge badge-primary">Основная</span>}
-              <button className="icon-btn sm" onClick={() => setEdit(c.id)} aria-label="edit"><Pencil size={14} /></button>
+              {b.mainCard === c.id && <span className="badge badge-primary">Основная</span>}
+              <button className="icon-btn sm" onClick={() => open(c.id)} aria-label="edit"><Pencil size={14} /></button>
               <button className="icon-btn sm" onClick={() => setDel(c.id)} aria-label="delete"><Trash2 size={14} color="var(--error)" /></button>
             </div>
           </div>
         ))}
+        {!b.cards.length && <p className="empty-state t-sm">Карт нет</p>}
       </div>
       <ConfirmModal open={!!del} onClose={() => setDel(null)} confirmText="Удалить" text="Вы уверены, что хотите удалить карту?"
-        onConfirm={() => { setCards((cs) => cs.filter((c) => c.id !== del)); setDel(null); toast('success', 'Карта удалена'); }} />
+        onConfirm={() => { if (del) b.removeCard(del); setDel(null); toast('success', 'Карта удалена'); }} />
     </>
   );
 }

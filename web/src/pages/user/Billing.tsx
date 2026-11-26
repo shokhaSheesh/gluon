@@ -159,7 +159,7 @@ export default function Billing() {
                 <tr key={p.id}>
                   <td>{p.date}</td>
                   <td className="strong">{p.title}</td>
-                  <td><Badge kind={p.kind === 'topup' ? 'success' : p.kind === 'plan' ? 'primary' : 'neutral'}>{{ topup: 'Пополнение', plan: 'Тариф', service: 'Сервис' }[p.kind]}</Badge></td>
+                  <td><Badge kind={p.kind === 'topup' ? 'success' : p.kind === 'plan' ? 'primary' : p.kind === 'adjust' ? 'warning' : 'neutral'}>{{ topup: 'Пополнение', plan: 'Тариф', service: 'Сервис', storage: 'Архив', adjust: 'Корректировка' }[p.kind]}</Badge></td>
                   <td style={{ textAlign: 'right', fontWeight: 600, color: p.amount > 0 ? 'var(--success)' : 'var(--text)' }}>{p.amount > 0 ? '+ ' : '− '}{sum(Math.abs(p.amount))}</td>
                 </tr>
               ))}

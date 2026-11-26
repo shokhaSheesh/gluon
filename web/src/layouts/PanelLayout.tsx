@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { ArrowLeftRight, HardDrive, ListTree, FileText, GalleryHorizontal, CalendarCheck, Handshake, Landmark, Repeat, Tags, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
 import { Badge, ConfirmModal, Field, Input, LangSelect, Logo, Modal, PasswordInput, PhoneInput, ThemeToggle } from '../components/ui';
 import { useApp, type Platform } from '../lib/store';
-import { chatContactIds, currentActor, orgOf, useMerchant, type Employee } from '../lib/merchant';
+import { adminChatGroups, chatContactIds, currentActor, orgOf, useMerchant, type Employee } from '../lib/merchant';
 import './panel.css';
 
 export default function PanelLayout({ platform }: { platform: Exclude<Platform, 'user'> }) {
@@ -21,7 +21,9 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
   const team = mer.teamOf(mOrg, mKind);
   const me = team?.employees.find((e) => e.name === currentActor(team)) ?? null;
   const newAccReq = platform === 'admin' ? mer.accountRequests.filter((r) => r.status === 'new').length : 0;
-  const unreadChats = mer.unreadChats(session?.orgId ?? 'admin', chatContactIds(mer.clients, session?.platform, session?.kind, session?.orgId).ids).length;
+  const unreadChats = session?.platform === 'admin'
+    ? Object.values(adminChatGroups(mer.clients, mer.partners)).reduce((n, ids) => n + mer.unreadChats('admin', ids).length, 0)
+    : mer.unreadChats(session?.orgId ?? 'admin', chatContactIds(mer.clients, session?.platform, session?.kind, session?.orgId).ids).length;
 
   type Link = { to: string; label: string; icon: React.ReactNode; end?: boolean; badge?: number };
   const m = '/merchant';

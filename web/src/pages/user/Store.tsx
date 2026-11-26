@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { BrandMark, ConfirmModal, Modal } from '../../components/ui';
-import { SERVICES, STORE_EXTRA, type Service } from '../../data/mock';
+import { SERVICES, type Service } from '../../data/mock';
 import { useApp } from '../../lib/store';
-import { SERVICE_IDS, orderedServices, recommendedFor, useMerchant } from '../../lib/merchant';
-import { IMAGES } from '../../assets';
+import { SERVICE_IDS, bannerState, orderedServices, recommendedFor, useMerchant } from '../../lib/merchant';
+import { bannerBg } from '../panel/AdminBanners';
 import { sum, useBilling } from '../../lib/billing';
 import { useShell } from '../../layouts/UserLayout';
 import { LinkServiceModal } from './LinkService';
@@ -29,20 +29,17 @@ export default function Store() {
   const allowed = session?.kind === 'bank' && session.orgId ? (bankServices[session.orgId] ?? SERVICE_IDS) : null;
   const { prices, payService, balance, linked, setLink } = useBilling();
   const { openTopUp } = useShell();
-  const [extras, setExtras] = useState(STORE_EXTRA);
   const [confirm, setConfirm] = useState<Item | null>(null);
   const [linking, setLinking] = useState<Service | null>(null);
   const [off, setOff] = useState<Item | null>(null);
   const [slide, setSlide] = useState(0);
 
-  // Integrated services take their state from billing (shared with the «Сервисы» switcher); extras are demo-only.
+  // Services take their state from billing (shared with the «Сервисы» switcher).
   const items: Item[] = [
     // hidden by Gluon admin («В магазине» off) or by the client's bank → not offered; already connected ones stay
     ...[...SERVICES].sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99)).map((s) => ({ ...s, st: (linked[s.id] ?? 'available') as St }))
       .filter((s) => s.st !== 'available' || ((prices[s.id]?.active ?? true) && (!allowed || allowed.includes(s.id)))),
-    ...extras.map((s) => ({ ...s, st: s.status as St })),
   ];
-  const isIntegrated = (id: string) => SERVICES.some((s) => s.id === id);
   const priceOf = (s: Service) => (prices[s.id] ? `${sum(prices[s.id].price)}` : s.price);
 
   const act = (s: Item) => {
@@ -51,16 +48,15 @@ export default function Store() {
     else if (s.st === 'connected') setOff(s);
   };
   const disconnect = (s: Item) => {
-    if (isIntegrated(s.id)) setLink(s.id, null);
-    else setExtras((l) => l.map((x) => (x.id === s.id ? { ...x, status: 'available' } : x)));
+    setLink(s.id, null);
     toast('info', `${s.name} отключён`);
   };
 
   const mine = items.filter((s) => s.st !== 'available');
   const recIds = recommendedFor(recommended, session?.kind === 'bank' ? session.orgId : undefined);
   const recList = items.filter((s) => s.st === 'available').map((s) => ({ ...s, rec: recIds.includes(s.id) })).sort((a, b) => Number(!!b.rec) - Number(!!a.rec));
-  // banners: admin's order, only active ones for services this client can see
-  const offers = banners.filter((bn) => bn.active).map((bn) => ({ bn, s: items.find((x) => x.id === bn.service) })).filter((x): x is { bn: typeof x.bn; s: Item } => !!x.s);
+  // banners: admin's order, only the ones on air today (switched on + inside their period) for services this client can see
+  const offers = banners.filter((bn) => bannerState(bn) === 'live').map((bn) => ({ bn, s: items.find((x) => x.id === bn.service) })).filter((x): x is { bn: typeof x.bn; s: Item } => !!x.s);
 
   return (
     <div className="col gap-16">
@@ -75,9 +71,9 @@ export default function Store() {
         <div className="st-offers">
           <div className="st-track" style={{ transform: `translateX(calc(${-slide} * (25% + 4px)))` }}>
             {offers.map(({ bn, s }) => (
-              <div key={bn.id} className="st-offer" style={{ background: s.id === 'billz' ? `linear-gradient(180deg, rgba(0,0,0,.05) 30%, rgba(0,0,0,.65)), url(${IMAGES.billzOffer}) center/cover` : `linear-gradient(135deg, ${s.color}, color-mix(in srgb, ${s.color} 45%, #0b1414))` }}>
+              <div key={bn.id} className="st-offer" style={{ background: bn.image ? `linear-gradient(180deg, rgba(0,0,0,.05) 30%, rgba(0,0,0,.65)), ${bannerBg(bn, s.color)}` : bannerBg(bn, s.color) }}>
                 <span className="badge badge-success" style={{ alignSelf: 'flex-start' }}>Специальное предложение</span>
-                {s.id === 'billz' ? <span /> : <p className="st-offer-title">{bn.title}</p>}
+                {bn.image ? <span /> : <p className="st-offer-title">{bn.title}</p>}
                 <div className="row between">
                   <span className="row gap-8"><BrandMark name={s.name} color="#ffffff33" text={s.mark} size={30} /><span><b>{s.name}</b><br /><span className="t-xs">{priceOf(s)}</span></span></span>
                   <button className="btn btn-secondary btn-sm" onClick={() => (s.st === 'available' ? setConfirm(s) : s.st === 'link' ? setLinking(s) : toast('info', `${s.name} уже подключён`))}>
@@ -110,15 +106,10 @@ export default function Store() {
             <div className="row gap-12">
               <button className="btn btn-secondary grow" onClick={() => setConfirm(null)}>Отмена</button>
               <button className="btn btn-primary grow" onClick={() => {
-                if (isIntegrated(confirm.id)) {
-                  if (payService(confirm.id, 1) === 'insufficient') { toast('error', 'Недостаточно средств на балансе'); setConfirm(null); openTopUp(); return; }
-                  setLink(confirm.id, 'link');
-                  toast('success', `${confirm.name}: подписка оплачена`);
-                  setLinking(confirm);
-                } else {
-                  setExtras((l) => l.map((x) => (x.id === confirm.id ? { ...x, status: 'review' } : x)));
-                  toast('success', `Заявка на подключение ${confirm.name} отправлена`);
-                }
+                if (payService(confirm.id, 1) === 'insufficient') { toast('error', 'Недостаточно средств на балансе'); setConfirm(null); openTopUp(); return; }
+                setLink(confirm.id, 'link');
+                toast('success', `${confirm.name}: подписка оплачена`);
+                setLinking(confirm);
                 setConfirm(null);
               }}>{prices[confirm.id] ? 'Оплатить и подключить' : 'Подключить'}</button>
             </div>

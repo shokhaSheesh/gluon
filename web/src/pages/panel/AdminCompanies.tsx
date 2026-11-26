@@ -5,6 +5,8 @@ import { Badge, Pagination, Select, formatPhone } from '../../components/ui';
 import { CATEGORIES, CHANNEL_LABEL, TODAY, parseDate, useMerchant, type Channel } from '../../lib/merchant';
 import { useApp } from '../../lib/store';
 import { downloadXlsx } from '../../lib/excel';
+import { sum } from '../../lib/billing';
+import { useLedgers } from '../../lib/ledger';
 import './merchant/merchant.css';
 
 const PER = 12;
@@ -16,6 +18,8 @@ export default function AdminCompanies() {
   const { toast } = useApp();
   const { clients } = useMerchant();
   const nav = useNavigate();
+  const ledgers = useLedgers();
+  const balOf = (id: string) => ledgers.find((x) => x.c.id === id)?.l.balance ?? 0;
   const [q, setQ] = useState('');
   const [channel, setChannel] = useState('all');
   const [status, setStatus] = useState('all');
@@ -36,8 +40,8 @@ export default function AdminCompanies() {
       <div className="row between wrap gap-12">
         <h1 className="h4">Компании</h1>
         <button className="btn btn-secondary" onClick={() => {
-          downloadXlsx('gluon-companies.xlsx', 'Компании', ['Компания', 'ИНН', 'Владелец', 'Телефон', 'Категория', 'Канал', 'Тариф', 'Сервисов', 'Счетов', 'Регистрация', 'Последний вход', 'Статус', 'Причина блокировки'],
-            rows.map((c) => [c.company, c.inn, c.owner, formatPhone(c.phone), c.category, CHANNEL_LABEL[c.channel], PLAN_NAME[c.plan] ?? c.plan, Object.keys(c.services).length,
+          downloadXlsx('gluon-companies.xlsx', 'Компании', ['Компания', 'ИНН', 'Владелец', 'Телефон', 'Категория', 'Канал', 'Тариф', 'Баланс, сум', 'Сервисов', 'Счетов', 'Регистрация', 'Последний вход', 'Статус', 'Причина блокировки'],
+            rows.map((c) => [c.company, c.inn, c.owner, formatPhone(c.phone), c.category, CHANNEL_LABEL[c.channel], PLAN_NAME[c.plan] ?? c.plan, balOf(c.id), Object.keys(c.services).length,
               (c.accounts ?? []).filter((a) => a.status === 'active').length, c.registered, c.lastActive ?? 'Не входил', c.blocked ? 'Заблокирована' : 'Активна', c.block ? `${c.block.reason}${c.block.note ? `: ${c.block.note}` : ''}` : '']));
           toast('success', `Выгружено компаний: ${rows.length}`);
         }}><Download size={16} /> Экспорт в Excel</button>
@@ -60,7 +64,7 @@ export default function AdminCompanies() {
       <div className="card" style={{ overflow: 'hidden' }}>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Компания</th><th>ИНН</th><th>Канал</th><th>Тариф</th><th>Сервисы</th><th>Счета</th><th>Последний вход</th></tr></thead>
+            <thead><tr><th>Компания</th><th>ИНН</th><th>Канал</th><th>Тариф</th><th>Баланс</th><th>Сервисы</th><th>Счета</th><th>Последний вход</th></tr></thead>
             <tbody>
               {view.map((c) => (
                 <tr key={c.id} className="clickable" onClick={() => nav(c.id)}>
@@ -73,12 +77,13 @@ export default function AdminCompanies() {
                   <td>{c.inn}</td>
                   <td>{c.channel === 'gluon' ? <Badge kind="primary">Gluon</Badge> : <Badge kind="neutral">{CHANNEL_LABEL[c.channel]}</Badge>}</td>
                   <td>{PLAN_NAME[c.plan] ?? c.plan}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{sum(balOf(c.id))}</td>
                   <td>{Object.keys(c.services).length}</td>
                   <td>{(c.accounts ?? []).filter((a) => a.status === 'active').length}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.lastActive ?? <span className="muted">Не входил</span>}</td>
                 </tr>
               ))}
-              {!view.length && <tr><td colSpan={7}><div className="empty-state">Компании не найдены</div></td></tr>}
+              {!view.length && <tr><td colSpan={8}><div className="empty-state">Компании не найдены</div></td></tr>}
             </tbody>
           </table>
         </div>

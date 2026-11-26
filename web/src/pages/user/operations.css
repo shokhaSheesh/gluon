@@ -14,7 +14,6 @@
 .op-amount.in { color: var(--success); }
 .op-amount.out { color: var(--error); }
 .op-amount.tr { color: var(--text); }
-.op-tabcount { margin-left: 4px; font-size: 12px; color: var(--text-4); }
 .op-menu { width: 300px; padding: 6px; }
 .op-menu .menu-item { padding: 10px; align-items: center; }
 .op-fmt { width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }

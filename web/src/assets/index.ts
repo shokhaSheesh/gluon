@@ -11,9 +11,6 @@ import kapital from './figma/banks/kapital.png';
 import kapitalMark from './figma/banks/kapital-mark.png';
 import billz from './figma/services/billz.png';
 import robosell from './figma/services/robosell.svg';
-import smartup from './figma/services/smartup.svg';
-import gcal from './figma/services/gcal.png';
-import zoom from './figma/services/zoom.png';
 import clients from './figma/archive/clients.png';
 import products from './figma/archive/products.png';
 import orders from './figma/archive/orders.png';
@@ -51,9 +48,6 @@ export const BANK_LOGOS: Record<string, { word: string; mark: string }> = {
 export const LOGO_BY_NAME: Record<string, string> = {
   Billz: billz,
   Robosell: robosell,
-  Smartup: smartup,
-  'Google Calendar': gcal,
-  Zoom: zoom,
   'Hayot Bank': hayotMark,
   Aloqabank: aloqaMark,
   Anorbank: anorMark,

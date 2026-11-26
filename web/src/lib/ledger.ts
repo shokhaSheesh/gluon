@@ -9,10 +9,12 @@ import { useMemo } from 'react';
 import { OPERATIONS } from '../data/operations';
 import { EMPLOYEES, SERVICES } from '../data/mock';
 import { DEMO_CLIENT_ID, TODAY, fmtDate, parseDate, servicePayments, useMerchant, type Client } from './merchant';
-import { useBilling, type Plan, type ServicePrice } from './billing';
+import { cardBrand, maskCard, useBilling, type BalanceAdj, type Payment, type Plan, type SavedCard, type ServicePrice } from './billing';
 
-export type OpKind = 'topup' | 'service' | 'plan' | 'storage' | 'refund';
-export interface LedgerOp { id: string; date: string; time: string; kind: OpKind; title: string; amount: number; balance: number; ref?: string }
+export type OpKind = 'topup' | 'service' | 'plan' | 'storage' | 'refund' | 'adjust';
+export interface LedgerOp { id: string; date: string; time: string; kind: OpKind; title: string; amount: number; balance: number; ref?: string; by?: string }
+/** Card the company saved in Gluon (masked). */
+export interface CompanyCard { number: string; brand: string; name: string; added: string; main: boolean }
 export type PayStatus = 'success' | 'failed' | 'refunded';
 export interface ProviderPayment { id: string; date: string; time: string; method: string; card: string; amount: number; fee: number; status: PayStatus; error?: string }
 /** A Gluon plan subscription (tariff). A company has one current plan; earlier plans stay in history. */
@@ -22,9 +24,11 @@ export interface PlanPayment { id: string; date: string; planId: string; plan: s
 export interface Employee { name: string; role: string; phone: string; lastActive: string }
 export interface BankOp { id: string; date: string; counterparty: string; purpose: string; amount: number; account: string }
 export interface Storage { totalGb: number; usedGb: number; parts: { name: string; gb: number; color: string }[] }
-export interface CompanyLedger { subs: Subscription[]; planPayments: PlanPayment[]; ops: LedgerOp[]; payments: ProviderPayment[]; balance: number; storage: Storage; employees: Employee[]; bankOps: BankOp[] }
+export interface CompanyLedger { subs: Subscription[]; planPayments: PlanPayment[]; ops: LedgerOp[]; payments: ProviderPayment[]; balance: number; storage: Storage; employees: Employee[]; bankOps: BankOp[]; cards: CompanyCard[] }
+/** Live data of the signed-in demo company: its own balance history and saved cards replace the generated ones. */
+export interface OwnBilling { payments: Payment[]; balance: number; cards: SavedCard[]; mainCard: string }
 
-export const OP_LABEL: Record<OpKind, string> = { topup: 'Пополнение', service: 'Оплата сервиса', plan: 'Оплата тарифа', storage: 'Место в архиве', refund: 'Возврат' };
+export const OP_LABEL: Record<OpKind, string> = { topup: 'Пополнение', service: 'Оплата сервиса', plan: 'Оплата тарифа', storage: 'Место в архиве', refund: 'Возврат', adjust: 'Корректировка' };
 export const PAY_LABEL: Record<PayStatus, { label: string; kind: 'success' | 'error' | 'neutral' }> = {
   success: { label: 'Успешно', kind: 'success' }, failed: { label: 'Ошибка', kind: 'error' }, refunded: { label: 'Возврат', kind: 'neutral' },
 };
@@ -40,7 +44,7 @@ const seed = (s: string) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) %
 const pad = (n: number) => String(n).padStart(2, '0');
 const addMonths = (d: Date, m: number) => new Date(d.getFullYear(), d.getMonth() + m, d.getDate());
 
-export function companyLedger(c: Client, prices: Record<string, ServicePrice>, plans: Plan[], names: Record<string, string>): CompanyLedger {
+export function companyLedger(c: Client, prices: Record<string, ServicePrice>, plans: Plan[], names: Record<string, string>, adjustments: BalanceAdj[] = [], own?: OwnBilling): CompanyLedger {
   const k = seed(c.id);
   const plan = plans.find((p) => p.id === c.plan);
   const debits: { date: Date; kind: OpKind; title: string; amount: number; ref?: string }[] = [];
@@ -118,6 +122,11 @@ export function companyLedger(c: Client, prices: Record<string, ServicePrice>, p
     ops.push({ id: `${c.id}-d${i}`, date: fmtDate(d.date), time: clock(d.date), kind: d.kind, title: d.title, amount: -d.amount, balance: bal, ref: d.ref });
     i++;
   }
+  // manual changes by Gluon admin, after the generated history
+  for (const a of adjustments) {
+    bal += a.amount;
+    ops.push({ id: a.id, date: a.date, time: a.time, kind: 'adjust', title: `Корректировка Gluon · ${a.reason}${a.note ? `: ${a.note}` : ''}`, amount: a.amount, balance: bal, by: a.by });
+  }
   if (k % 5 === 1 && ops.length > 2) {
     // one refunded top-up (charged twice by the provider)
     const t = ops.find((o) => o.kind === 'topup');
@@ -149,7 +158,27 @@ export function companyLedger(c: Client, prices: Record<string, ServicePrice>, p
       }) : [];
 
   planPayments.reverse(); subs.reverse();
-  return { subs, planPayments, ops, payments, balance: bal, storage, employees, bankOps };
+  let cards: CompanyCard[] = [
+    { number: card, brand: method.toLowerCase(), name: method, added: c.registered, main: true },
+    ...(k % 3 === 0 ? [{ number: `${METHODS[(k + 1) % METHODS.length][1]} •••• ${String(2000 + (k % 7000)).slice(-4)}`, brand: METHODS[(k + 1) % METHODS.length][0].toLowerCase(), name: METHODS[(k + 1) % METHODS.length][0], added: fmtDate(addMonths(parseDate(c.registered), 2)), main: false }] : []),
+  ];
+  if (own) {
+    // the demo company: history, balance and cards are exactly what the user sees in the app
+    let b = own.balance;
+    const myOps: LedgerOp[] = own.payments.map((p) => {
+      const op: LedgerOp = { id: `${c.id}-u${p.id}`, date: p.date, time: p.time ?? '12:00', kind: p.kind, title: p.kind === 'adjust' ? `Корректировка Gluon · ${p.reason ?? ''}` : p.title, amount: p.amount, balance: b, by: p.by };
+      b -= p.amount;
+      return op;
+    });
+    const myPays: ProviderPayment[] = own.payments.filter((p) => p.kind === 'topup').map((p, j) => {
+      const num = p.card ?? maskCard(own.cards[0]?.number ?? '8600000000000000');
+      const brand = cardBrand(num.replace(/\D/g, ''));
+      return { id: `PLM-${String(k).padStart(5, '0')}U${p.id % 10_000}${j}`, date: p.date, time: p.time ?? '12:00', method: brand === 'mastercard' ? 'Mastercard' : brand.charAt(0).toUpperCase() + brand.slice(1), card: num, amount: p.amount, fee: Math.round(p.amount * 0.01), status: 'success' };
+    });
+    cards = own.cards.map((x) => ({ number: maskCard(x.number), brand: x.brand, name: x.name, added: x.added, main: x.id === own.mainCard }));
+    return { subs, planPayments, ops: myOps, payments: myPays, balance: own.balance, storage, employees, bankOps, cards };
+  }
+  return { subs, planPayments, ops, payments, balance: bal, storage, employees, bankOps, cards };
 }
 
 export const fmtSum = (n: number) => `${n < 0 ? '−' : n > 0 ? '+' : ''}${Math.abs(n).toLocaleString('ru-RU')} сум`;
@@ -158,8 +187,9 @@ const NAMES = Object.fromEntries(SERVICES.map((s) => [s.id, s.name]));
 /** Ledgers of every company (memoized) — used by the admin finance pages and the company page. */
 export function useLedgers() {
   const { clients } = useMerchant();
-  const { prices, plans } = useBilling();
-  return useMemo(() => clients.map((c) => ({ c, l: companyLedger(c, prices, plans, NAMES) })), [clients, prices, plans]);
+  const { prices, plans, adjustments, payments, balance, cards, mainCard } = useBilling();
+  return useMemo(() => clients.map((c) => ({ c, l: companyLedger(c, prices, plans, NAMES, adjustments[c.id], c.id === DEMO_CLIENT_ID ? { payments, balance, cards, mainCard } : undefined) })),
+    [clients, prices, plans, adjustments, payments, balance, cards, mainCard]);
 }
 
 const ERROR_CODE: Record<string, string> = {

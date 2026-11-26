@@ -60,13 +60,6 @@ export const ORDERS = Array.from({ length: 12 }, (_, i) => ({
   channel: i % 3 === 0 ? 'offline' : 'online',
 }));
 
-/* ---------- Store ---------- */
-export const STORE_EXTRA: Service[] = [
-  { id: 'smartup', name: 'Smartup', color: '#0F2B2B', mark: 'S', type: 'Дистрибуция', description: 'Принимайте заказы от торговых точек, контролируйте финансы и уведомления прямо в Telegram.', status: 'review', price: '—' },
-  { id: 'gcal', name: 'Google Calendar', color: '#4285F4', mark: '31', type: 'Планирование', description: 'Google Календарь поможет управлять расписанием, синхронизировать события и встречи.', status: 'available', price: 'Бесплатно' },
-  { id: 'zoom', name: 'Zoom', color: '#2D8CFF', mark: 'Z', type: 'Коммуникации', description: 'Zoom упрощает общение с командой через видеозвонки и вебинары.', status: 'connected', price: 'Бесплатно' },
-];
-
 /* ---------- Banking ---------- */
 export const PARTNER_SERIES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'].map((m, i) => ({
   m,

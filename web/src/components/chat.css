@@ -51,3 +51,9 @@
 @media (hover: none) { .cw-actions { opacity: 1; } }
 .cw-by { font-size: 12px; font-weight: 600; color: var(--primary); margin: 6px 4px 2px; }
 :root[data-theme='dark'] .cw-by { color: var(--accent, #7fc4a0); }
+.cl-seg { display: flex; width: 100%; overflow: visible; }
+.cl-seg button { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 6px; font-size: 13px; }
+.cl.wide { width: 360px; }
+@media (max-width: 800px) { .cl.wide { width: 100%; } }
+.cl-badge.sm { min-width: 18px; height: 18px; font-size: 10px; padding: 0 5px; }
+.cw-closed { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 20px; background: var(--surface-3); border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-2); }

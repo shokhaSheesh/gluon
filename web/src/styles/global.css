@@ -377,3 +377,4 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .ls-opt svg { color: var(--primary); flex-shrink: 0; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.op-tabcount { margin-left: 4px; font-size: 12px; color: var(--text-4); }

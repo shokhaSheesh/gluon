@@ -1,5 +1,5 @@
 import { BANKS, SERVICES } from '../data/mock';
-import { BANK_LOGOS, LOGO_BY_NAME } from '../assets';
+import { BANK_LOGOS, IMAGES, LOGO_BY_NAME } from '../assets';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 /**
@@ -20,7 +20,8 @@ export interface Partner { id: string; name: string; aggregator: boolean; login:
 /** A service added by Gluon admin (the 5 built-in integrations live in data/mock). */
 export interface CatalogService { id: string; name: string; type: string; description: string; color: string; logo?: string }
 /** Store banner («Специальные предложения») tied to a service; order = array order. */
-export interface Banner { id: string; service: string; title: string; active: boolean }
+/** Store banner. image — uploaded picture (data URL); from / to — show period «дд.мм.гггг» (empty = no limit). */
+export interface Banner { id: string; service: string; title: string; active: boolean; image?: string; from?: string; to?: string }
 export type SubStatus = 'active' | 'unpaid';
 
 export interface ClientService { status: SubStatus; since: string; paidUntil: string }
@@ -87,6 +88,7 @@ interface MerchantData {
   teams: Record<string, Team>;               // org id → employees & roles
   audit: Record<string, AuditEntry[]>;       // org id → journal (newest first)
   chatRead?: Record<string, string[]>;       // org id → chats already opened
+  chatStatus?: Record<string, Record<string, ChatStatus>>; // org id → chat id → open / closed (set by staff)
   partners: Partner[];
   recommended: Record<string, string[]>;     // 'gluon' = admin default; bank id = override for that bank's clients
   banners: Banner[];
@@ -246,15 +248,24 @@ function initial(): MerchantData {
     ],
     recommended: { gluon: ['billz', 'robosell'], kapital: ['billz', 'ox'] },
     banners: [
-      { id: 'bn-1', service: 'robosell', title: 'Суперсила для бизнеса с Robosell', active: true },
+      { id: 'bn-1', service: 'robosell', title: 'Суперсила для бизнеса с Robosell', active: true, from: '01.11.2026', to: '31.12.2026' },
       { id: 'bn-2', service: 'robohub', title: 'Суперсила для бизнеса с RoboHub', active: true },
-      { id: 'bn-3', service: 'billz', title: 'Billz для магазинов одежды', active: true },
-      { id: 'bn-4', service: 'ox', title: 'Суперсила для бизнеса с OX', active: true },
+      { id: 'bn-3', service: 'billz', title: 'Billz для магазинов одежды', active: true, image: IMAGES.billzOffer, from: '15.11.2026' },
+      { id: 'bn-4', service: 'ox', title: 'Суперсила для бизнеса с OX', active: true, from: '01.12.2026', to: '31.01.2027' },
       { id: 'bn-5', service: 'delever', title: 'Доставка без хаоса с Delever', active: false },
     ],
     banks: seedBanks(),
     bankProducts: PRODUCT_DEFS,
   };
+}
+
+/** Banner status for today: hidden by admin, waiting for its start date, past its end date, or on air. */
+export type BannerState = 'off' | 'scheduled' | 'ended' | 'live';
+export function bannerState(b: Banner, today = TODAY): BannerState {
+  if (!b.active) return 'off';
+  if (b.from && parseDate(b.from) > today) return 'scheduled';
+  if (b.to && parseDate(b.to) < today) return 'ended';
+  return 'live';
 }
 
 /* ---------- provider ---------- */
@@ -277,6 +288,9 @@ interface MerchantState extends MerchantData {
   /** Chats with unread messages (counted per chat, not per message). */
   unreadChats: (org: string, contactIds: string[]) => string[];
   markChatRead: (org: string, id: string) => void;
+  /** Closed chats: staff closed them, or (demo) every 4th chat of a list starts closed. i — position in its list. */
+  isChatClosed: (org: string, id: string, i: number) => boolean;
+  setChatStatus: (org: string, id: string, st: ChatStatus) => void;
   savePartner: (p: Partner) => void;
   setRecommended: (key: string, ids: string[]) => void;
   setBanners: (b: Banner[]) => void;
@@ -285,7 +299,7 @@ interface MerchantState extends MerchantData {
 }
 
 const Ctx = createContext<MerchantState | null>(null);
-const KEY = 'gluon.merchant.v14';
+const KEY = 'gluon.merchant.v15';
 const today = () => new Date().toLocaleDateString('ru-RU');
 
 export function MerchantProvider({ children }: { children: ReactNode }) {
@@ -321,7 +335,9 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     reset: () => setData(initial()),
     teamOf: (org, kind) => data.teams?.[org] ?? defaultTeam(kind),
     setTeam: (org, t) => setData((d) => ({ ...d, teams: { ...(d.teams ?? {}), [org]: t } })),
-    unreadChats: (org, ids) => ids.filter((id, i) => (id === 'support' || i <= 2) && !(data.chatRead?.[org] ?? []).includes(id)),
+    unreadChats: (org, ids) => ids.filter((id, i) => (id === 'support' || i <= 2) && !(data.chatRead?.[org] ?? []).includes(id) && data.chatStatus?.[org]?.[id] !== 'closed'),
+    isChatClosed: (org, id, i) => (data.chatStatus?.[org]?.[id] ?? (i % 4 === 3 ? 'closed' : 'open')) === 'closed',
+    setChatStatus: (org, id, st) => setData((d) => ({ ...d, chatStatus: { ...(d.chatStatus ?? {}), [org]: { ...(d.chatStatus?.[org] ?? {}), [id]: st } } })),
     savePartner: (p) => setData((d) => ({ ...d, partners: d.partners.some((x) => x.id === p.id) ? d.partners.map((x) => (x.id === p.id ? p : x)) : [...d.partners, p] })),
     setRecommended: (key, ids) => setData((d) => ({ ...d, recommended: { ...d.recommended, [key]: ids } })),
     setBanners: (banners) => setData((d) => ({ ...d, banners })),
@@ -501,7 +517,7 @@ function defaultAudit(kind: OrgKind, team: Team): AuditEntry[] {
       [manager, 'banners', 'Отключил баннер', 'Delever'],
       [owner, 'partners', 'Создал партнёра', 'Hayot Bank', 'Агрегатор · hayot.gluon.uz'],
       [owner, 'team', 'Добавил сотрудника', support, 'Роль: Поддержка'],
-      [owner, 'services', 'Скрыл сервис из магазина', 'Smartup'],
+      [owner, 'services', 'Скрыл сервис из магазина', 'Delever'],
     ];
     return rows.map(([actor, section, action, target, details], i) => {
       const d = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - Math.floor(i * 2.3));
@@ -546,6 +562,17 @@ function defaultAudit(kind: OrgKind, team: Team): AuditEntry[] {
     const d = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - Math.floor(i * 1.6));
     return { id: `a-seed-${i}`, at: `${fmtDate(d)} ${pad(17 - (i % 9))}:${pad((i * 13) % 60)}`, actor: actor ?? 'Владелец', section, action, target: target ?? '—', details };
   });
+}
+
+export type ChatStatus = 'open' | 'closed';
+export type ChatGroup = 'users' | 'services' | 'banks';
+/** Gluon admin chats, split like the platforms: company owners, service partners, bank partners. */
+export function adminChatGroups(clients: Client[], partners: Partner[]): Record<ChatGroup, string[]> {
+  return {
+    users: clients.slice(0, 16).map((c) => c.id),
+    services: partners.filter((p) => !p.aggregator).map((p) => `p-${p.id}`),
+    banks: partners.filter((p) => p.aggregator).map((p) => `p-${p.id}`),
+  };
 }
 
 /** Contacts of a panel chat: Gluon support (not for admin) + the cabinet's own clients. */

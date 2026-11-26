@@ -1,7 +1,11 @@
 import { useState, type ReactNode } from 'react';
+import { useBilling } from '../../lib/billing';
+import { DEMO_CLIENT_ID, currentActor, useMerchant } from '../../lib/merchant';
+import { useApp } from '../../lib/store';
+import { CardBrand } from '../user/ProfileModal';
 import clsx from 'clsx';
-import { ArrowDownLeft, ArrowUpRight, CreditCard, FileJson, HardDrive, Repeat, Users, Wallet } from 'lucide-react';
-import { Badge, formatPhone } from '../../components/ui';
+import { ArrowDownLeft, ArrowUpRight, CreditCard, FileJson, HardDrive, Pencil, Repeat, Users, Wallet } from 'lucide-react';
+import { Badge, Field, Input, Modal, Select, formatPhone } from '../../components/ui';
 import { maskAccount } from '../../data/operations';
 import { sum } from '../../lib/billing';
 import { PAY_LABEL, fmtSum, useLedgers, type ProviderPayment } from '../../lib/ledger';
@@ -18,6 +22,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
   const l = ledgers.find((x) => x.c.id === c.id)?.l;
   const [tab, setTab] = useState<Tab>('overview');
   const [resp, setResp] = useState<ProviderPayment | null>(null);
+  const [editBal, setEditBal] = useState(false);
   if (!l) return <>{overview}</>;
   const cur = l.subs.find((s) => s.status === 'active');
   const pctUsed = Math.round((l.storage.usedGb / l.storage.totalGb) * 100);
@@ -29,7 +34,11 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
   return (
     <>
       <div className="p-stats">
-        <Stat icon={<Wallet size={22} />} color="linear-gradient(135deg,#2f4d4d,#5b8a8a)" value={sum(l.balance)} label="Баланс Gluon" />
+        <div className="p-stat">
+          <span className="p-stat-ic" style={{ background: 'linear-gradient(135deg,#2f4d4d,#5b8a8a)' }}><Wallet size={22} /></span>
+          <div className="grow"><p><b>{sum(l.balance)}</b></p><p className="t-sm muted">Баланс Gluon</p></div>
+          <button className="icon-btn sm" onClick={() => setEditBal(true)} aria-label="Изменить баланс" title="Изменить баланс"><Pencil size={14} /></button>
+        </div>
         <Stat icon={<Repeat size={22} />} color="linear-gradient(135deg,#1570ef,#53b1fd)" value={cur?.plan ?? '—'} label="Тариф" />
         <Stat icon={<HardDrive size={22} />} color="linear-gradient(135deg,#7a5af8,#a48afb)" value={`${l.storage.usedGb} / ${l.storage.totalGb} GB`} label="Хранилище" />
         <Stat icon={<Users size={22} />} color="linear-gradient(135deg,#079455,#47cd89)" value={l.employees.length} label="Сотрудники" />
@@ -106,6 +115,21 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
       {tab === 'ops' && <OpsTable rows={l.ops.map((o) => ({ c, o }))} hideCompany />}
 
       {tab === 'payments' && (
+        <section className="card db-card">
+          <div className="row between wrap gap-8"><h3 className="medium">Привязанные карты</h3><span className="t-sm muted">Карты, которые компания сохранила для пополнения</span></div>
+          <div className="cc-list">
+            {l.cards.map((k) => (
+              <div key={k.number} className="cc-item">
+                <CardBrand brand={k.brand} />
+                <span className="col grow"><span className="row gap-6"><b className="t-sm medium">{k.number}</b>{k.main && <Badge kind="primary">Основная</Badge>}</span><span className="t-xs muted">{k.name} · с {k.added}</span></span>
+              </div>
+            ))}
+            {!l.cards.length && <span className="t-sm muted">Компания не сохраняла карты</span>}
+          </div>
+        </section>
+      )}
+
+      {tab === 'payments' && (
         <div className="card" style={{ overflow: 'hidden' }}>
           <div className="table-wrap">
             <table className="table">
@@ -130,6 +154,9 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
       )}
 
       <ResponseModal data={resp ? { p: resp, c } : null} onClose={() => setResp(null)} />
+      <Modal open={editBal} onClose={() => setEditBal(false)} title={`Баланс · ${c.company}`} width={460}>
+        {editBal && <BalanceForm c={c} balance={l.balance} onClose={() => setEditBal(false)} />}
+      </Modal>
 
       {tab === 'bank' && (
         <div className="card" style={{ overflow: 'hidden' }}>
@@ -194,5 +221,53 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
         </div>
       )}
     </>
+  );
+}
+
+const REASONS = ['Компенсация', 'Возврат средств', 'Ошибка списания', 'Бонус', 'Перенос оплаты', 'Другое'];
+const digits = (v: string) => v.replace(/\D/g, '');
+
+/** Gluon admin changes a company's balance by hand; every change goes to «Операции» and the audit log. */
+function BalanceForm({ c, balance, onClose }: { c: Client; balance: number; onClose: () => void }) {
+  const { toast } = useApp();
+  const m = useMerchant();
+  const b = useBilling();
+  const [mode, setMode] = useState<'add' | 'sub'>('add');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState(REASONS[0]);
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState<{ amount?: string; note?: string }>({});
+  const n = Number(digits(amount));
+  const delta = mode === 'add' ? n : -n;
+  const submit = () => {
+    const e: typeof err = {};
+    if (!n) e.amount = 'Введите сумму';
+    else if (mode === 'sub' && n > balance) e.amount = `На балансе только ${sum(balance)}`;
+    if (reason === 'Другое' && note.trim().length < 3) e.note = 'Опишите причину';
+    setErr(e);
+    if (Object.keys(e).length) return;
+    const by = currentActor(m.teamOf('gluon', 'admin'));
+    b.adjustBalance(c.id, delta, reason, note.trim() || undefined, by, c.id === DEMO_CLIENT_ID);
+    m.log('gluon', 'admin', { section: 'companies', action: delta > 0 ? 'Начислил на баланс' : 'Списал с баланса', target: c.company, details: `${sum(balance)} → ${sum(balance + delta)} · ${reason}${note.trim() ? `: ${note.trim()}` : ''}` });
+    toast('success', 'Баланс изменён');
+    onClose();
+  };
+  return (
+    <div className="col gap-16" style={{ padding: 24 }}>
+      <div className="row between" style={{ padding: 12, borderRadius: 10, background: 'var(--surface-2)' }}><span className="t-sm muted">Сейчас на балансе</span><b>{sum(balance)}</b></div>
+      <div className="tabs-seg" style={{ alignSelf: 'flex-start' }}>
+        <button className={mode === 'add' ? 'active' : ''} onClick={() => setMode('add')}>Начислить</button>
+        <button className={mode === 'sub' ? 'active' : ''} onClick={() => setMode('sub')}>Списать</button>
+      </div>
+      <Field label="Сумма" error={err.amount}><Input inputMode="numeric" placeholder="0" value={n ? n.toLocaleString('ru-RU') : ''} onChange={(e) => { setAmount(e.target.value); setErr({ ...err, amount: undefined }); }} suffixBox="сум" error={!!err.amount} /></Field>
+      <Field label="Причина"><Select value={reason} onChange={setReason} options={REASONS.map((r) => ({ value: r, label: r }))} /></Field>
+      <Field label={reason === 'Другое' ? 'Комментарий' : 'Комментарий (необязательно)'} error={err.note}><Input value={note} onChange={(e) => { setNote(e.target.value); setErr({ ...err, note: undefined }); }} placeholder="Например: двойное списание 10.11" maxLength={120} error={!!err.note} /></Field>
+      {!!n && <div className="row between t-sm"><span className="muted">Баланс после</span><b style={{ color: delta > 0 ? 'var(--success)' : 'var(--text)' }}>{sum(balance + delta)}</b></div>}
+      <p className="t-xs muted">Изменение попадёт в «Операции» компании и в журнал действий.</p>
+      <div className="row gap-12">
+        <button className="btn btn-secondary grow" onClick={onClose}>Отмена</button>
+        <button className="btn btn-primary grow" onClick={submit}>{mode === 'add' ? 'Начислить' : 'Списать'}</button>
+      </div>
+    </div>
   );
 }

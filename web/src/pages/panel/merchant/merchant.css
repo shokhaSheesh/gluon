@@ -168,3 +168,8 @@
 .pf-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
 .st-mini { display: flex; gap: 2px; height: 8px; border-radius: 99px; overflow: hidden; background: var(--surface-3); }
 .st-mini span { display: block; height: 100%; }
+.bn-period { align-items: flex-end; min-width: 150px; }
+.bn-preview.lg { height: auto; aspect-ratio: 16 / 7; }
+@media (max-width: 720px) { .bn-period { display: none; } }
+.cc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; }
+.cc-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }

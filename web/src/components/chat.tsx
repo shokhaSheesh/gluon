@@ -10,8 +10,9 @@ type Msg = ChatMsg & { replyTo?: number; by?: string };
 export interface ChatStaff { me: string; team: string[] }
 
 /** Chat thread with reply-to-message: hover a message → «Ответить», the quote is shown above the reply. */
-export function ChatWindow({ contact, seed = CHAT_MESSAGES, header, onBack, staff, onSend }: {
+export function ChatWindow({ contact, seed = CHAT_MESSAGES, header, onBack, staff, onSend, actions, banner }: {
   contact: Contact; seed?: ChatMsg[]; header?: ReactNode; onBack?: () => void; staff?: ChatStaff; onSend?: (text: string, isReply: boolean) => void;
+  actions?: ReactNode; banner?: ReactNode;
 }) {
   const autoReply = staff ? 'Спасибо, понял!' : 'Спасибо! Ваше сообщение получено, специалист ответит в ближайшее время.';
   const initial = (): Msg[] => seed.map((m, i) => ({
@@ -61,9 +62,13 @@ export function ChatWindow({ contact, seed = CHAT_MESSAGES, header, onBack, staf
             <span className="avatar">{contact.avatar}</span>
             <div><p className="medium">{contact.name}</p>{contact.sub && <p className="t-xs muted">{contact.sub}</p>}</div>
           </div>
-          {contact.phone && <span className="cw-phone"><Phone size={14} /> {contact.phone}</span>}
+          <div className="row gap-8">
+            {contact.phone && <span className="cw-phone"><Phone size={14} /> {contact.phone}</span>}
+            {actions}
+          </div>
         </div>
       )}
+      {banner}
       <div className="cw-body">
         <span className="cw-date">Сегодня, 12 февраль</span>
         {msgs.map((m, i) => {
@@ -117,19 +122,30 @@ export function ChatWindow({ contact, seed = CHAT_MESSAGES, header, onBack, staf
 }
 
 export function ChatList({
-  contacts, active, onSelect, tabs, tab, onTab,
-}: { contacts: Contact[]; active: string | null; onSelect: (id: string) => void; tabs?: string[]; tab?: number; onTab?: (i: number) => void }) {
+  contacts, active, onSelect, tabs, tab, onTab, tabCounts, segments, segment, onSegment,
+}: {
+  contacts: Contact[]; active: string | null; onSelect: (id: string) => void; tabs?: string[]; tab?: number; onTab?: (i: number) => void; tabCounts?: number[];
+  /** upper switch (e.g. who the chat is with); count = chats with new messages */
+  segments?: { label: string; count?: number }[]; segment?: number; onSegment?: (i: number) => void;
+}) {
   const [q, setQ] = useState('');
   const list = contacts.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()));
   return (
-    <aside className="cl">
+    <aside className={`cl ${segments ? 'wide' : ''}`}>
       <h2 className="h4" style={{ padding: '20px 16px 12px' }}>Все чаты</h2>
       <div style={{ padding: '0 16px 12px' }}>
         <div className="input-wrap" style={{ height: 40 }}><input placeholder="Поиск" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </div>
+      {segments && (
+        <div style={{ padding: '0 16px 12px' }}>
+          <div className="tabs-seg cl-seg">
+            {segments.map((sg, i) => <button key={sg.label} className={i === segment ? 'active' : ''} onClick={() => onSegment?.(i)}>{sg.label}{!!sg.count && <span className="cl-badge sm">{sg.count}</span>}</button>)}
+          </div>
+        </div>
+      )}
       {tabs && (
         <div className="cl-tabs">
-          {tabs.map((t, i) => <button key={t} className={i === tab ? 'active' : ''} onClick={() => onTab?.(i)}>{t}</button>)}
+          {tabs.map((t, i) => <button key={t} className={i === tab ? 'active' : ''} onClick={() => onTab?.(i)}>{t}{tabCounts && <span className="op-tabcount"> {tabCounts[i]}</span>}</button>)}
         </div>
       )}
       <div className="col">

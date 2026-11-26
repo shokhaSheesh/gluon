@@ -195,7 +195,7 @@ export function AdminPayments() {
 }
 
 /* ---------------- Операции (баланс Gluon) ---------------- */
-export const OP_KIND_BADGE: Record<OpKind, 'success' | 'info' | 'primary' | 'warning' | 'neutral'> = { topup: 'success', service: 'info', plan: 'primary', storage: 'warning', refund: 'neutral' };
+export const OP_KIND_BADGE: Record<OpKind, 'success' | 'info' | 'primary' | 'warning' | 'neutral'> = { topup: 'success', service: 'info', plan: 'primary', storage: 'warning', refund: 'neutral', adjust: 'warning' };
 
 export function AdminOperations() {
   const { toast } = useApp();
@@ -259,7 +259,7 @@ export function OpsTable({ rows, onOpen, hideCompany }: { rows: { c: { id: strin
               <tr key={o.id} className={onOpen ? 'clickable' : undefined} onClick={() => onOpen?.(c.id)}>
                 <td style={{ whiteSpace: 'nowrap' }}>{o.date} <span className="muted t-xs">{o.time}</span></td>
                 {!hideCompany && <td><Company name={c.company} sub={c.owner} /></td>}
-                <td><span className="row gap-8">{o.amount > 0 ? <ArrowDownLeft size={15} color="var(--success)" /> : <ArrowUpRight size={15} color="var(--text-3)" />}{o.title}</span></td>
+                <td><span className="row gap-8">{o.amount > 0 ? <ArrowDownLeft size={15} color="var(--success)" /> : <ArrowUpRight size={15} color="var(--text-3)" />}<span className="col">{o.title}{o.by && <span className="t-xs muted">Изменил: {o.by}</span>}</span></span></td>
                 <td><Badge kind={OP_KIND_BADGE[o.kind]}>{OP_LABEL[o.kind]}</Badge></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: o.amount > 0 ? 'var(--success)' : 'var(--text)' }} className="strong">{fmtSum(o.amount)}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} className="muted">{sum(o.balance)}</td>

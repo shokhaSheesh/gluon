@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Info, Plus } from 'lucide-react';
 import { Field, Input, Modal } from '../../components/ui';
-import { CARDS } from '../../data/mock';
+import { cardBrand, useBilling } from '../../lib/billing';
 import { useApp } from '../../lib/store';
 import { OtpBlock } from '../auth/OtpStep';
 import { CardBrand } from './ProfileModal';
@@ -13,15 +13,18 @@ const money = (s: string) => (digits(s) ? Number(digits(s)).toLocaleString('ru-R
 const cardFmt = (s: string) => digits(s).slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ');
 const expFmt = (s: string) => { const d = digits(s).slice(0, 4); return d.length > 2 ? d.slice(0, 2) + ' / ' + d.slice(2) : d; };
 
-export default function TopUpModal({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: (amount: number) => void }) {
+export default function TopUpModal({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: (amount: number, card: { id?: string; masked?: string }) => void }) {
   const { toast, session } = useApp();
+  const b = useBilling();
   const [step, setStep] = useState<'choose' | 'new' | 'otp'>('choose');
-  const [card, setCard] = useState('c1');
+  const [card, setCard] = useState(b.mainCard);
+  const [payWith, setPayWith] = useState<{ id?: string; masked?: string }>({});
   const [amount, setAmount] = useState('');
   const [nc, setNc] = useState({ number: '', exp: '', cvv: '', save: true });
   const [err, setErr] = useState<Record<string, string>>({});
 
-  useEffect(() => { if (open) { setStep('choose'); setAmount(''); setErr({}); setNc({ number: '', exp: '', cvv: '', save: true }); } }, [open]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setStep('choose'); setAmount(''); setErr({}); setCard(b.mainCard); setNc({ number: '', exp: '', cvv: '', save: true }); } }, [open]);
 
   const validateAmount = (e: Record<string, string>) => {
     const n = Number(digits(amount));
@@ -45,7 +48,7 @@ export default function TopUpModal({ open, onClose, onSuccess }: { open: boolean
               <p className="muted t-sm">Выберите карту для пополнения баланса</p>
             </div>
             <div className="col gap-4">
-              {CARDS.map((c) => (
+              {b.cards.map((c) => (
                 <label key={c.id} className="row gap-12" style={{ padding: '10px 4px', cursor: 'pointer' }}>
                   <input type="radio" checked={card === c.id} onChange={() => setCard(c.id)} style={{ accentColor: 'var(--primary)', width: 16, height: 16 }} />
                   <CardBrand brand={c.brand} />
@@ -56,7 +59,7 @@ export default function TopUpModal({ open, onClose, onSuccess }: { open: boolean
             {AmountField}
             <button className="btn btn-primary btn-lg btn-block mt-8" onClick={() => {
               const e: Record<string, string> = {}; validateAmount(e); setErr(e);
-              if (!Object.keys(e).length) setStep('otp');
+              if (!Object.keys(e).length) { setPayWith({ id: card }); setStep('otp'); }
             }}>Пополнить баланс</button>
             <button className="btn btn-secondary btn-block" onClick={() => { setErr({}); setStep('new'); }}><Plus size={16} /> Добавить новую карту</button>
           </div>
@@ -85,7 +88,10 @@ export default function TopUpModal({ open, onClose, onSuccess }: { open: boolean
               if (nc.exp.length !== 4 || Number(nc.exp.slice(0, 2)) > 12) e.exp = 'Срок неправильно введён';
               if (nc.cvv.length !== 3) e.cvv = 'CVV неправильно введён';
               validateAmount(e); setErr(e);
-              if (!Object.keys(e).length) setStep('otp');
+              if (Object.keys(e).length) return;
+              // a saved card shows up in the profile and in Gluon admin; an unsaved one is used once
+              const id = nc.save ? b.addCard({ number: nc.number.replace(/(\d{4})(?=\d)/g, '$1 '), exp: `${nc.exp.slice(0, 2)}/${nc.exp.slice(2)}`, brand: cardBrand(nc.number), name: 'Карта' }) : undefined;
+              setPayWith(id ? { id } : { masked: `${nc.number.slice(0, 4)} •••• ${nc.number.slice(-4)}` }); setStep('otp');
             }}>Пополнить баланс</button>
             <button className="btn btn-ghost btn-block" onClick={() => { setErr({}); setStep('choose'); }}>Назад</button>
           </div>
@@ -93,7 +99,7 @@ export default function TopUpModal({ open, onClose, onSuccess }: { open: boolean
 
         {step === 'otp' && (
           <OtpBlock compact phone={session?.login ?? '501234567'} onBack={() => setStep('choose')}
-            onDone={() => { onSuccess(Number(digits(amount))); toast('success', 'Ваш баланс пополнен!'); onClose(); }} />
+            onDone={() => { onSuccess(Number(digits(amount)), payWith); toast('success', 'Ваш баланс пополнен!'); onClose(); }} />
         )}
       </div>
     </Modal>

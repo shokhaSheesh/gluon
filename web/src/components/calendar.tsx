@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import './calendar.css';
 
 /**
@@ -144,6 +144,50 @@ export function Calendar({ mode, value, range, onChange, onRange, max, min }: {
         <button className="cal-nav" onClick={() => step(1)} aria-label="Вперёд"><ChevronRight size={16} /></button>
       </div>
       {view === 'days' ? (mode === 'week' ? weeks() : days()) : view === 'months' ? months() : years()}
+    </div>
+  );
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const toStr = (d: Date) => `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+const toDate = (s: string) => { const [dd, mm, yy] = s.split('.').map(Number); return new Date(yy, mm - 1, dd); };
+
+/** Single date input («дд.мм.гггг») with the app calendar in a popover. Empty = not set. */
+export function DateField({ value, onChange, placeholder = 'Не выбрано', min, max, align = 'left' }: {
+  value?: string; onChange: (v?: string) => void; placeholder?: string; min?: Date; max?: Date; align?: 'left' | 'right';
+}) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const open = !!pos;
+  const ref = useRef<HTMLDivElement>(null);
+  // the popover is fixed to the screen so modals with overflow don't cut it off
+  const toggle = () => {
+    if (pos) { setPos(null); return; }
+    const r = ref.current!.getBoundingClientRect();
+    const W = 300, H = 340;
+    const left = Math.max(8, Math.min(align === 'right' ? r.right - W : r.left, window.innerWidth - W - 8));
+    const top = r.bottom + 6 + H > window.innerHeight && r.top - 6 - H > 0 ? r.top - 6 - H : r.bottom + 6;
+    setPos({ top, left });
+  };
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setPos(null); };
+    const close = () => setPos(null);
+    document.addEventListener('mousedown', h);
+    window.addEventListener('resize', close);
+    return () => { document.removeEventListener('mousedown', h); window.removeEventListener('resize', close); };
+  }, [open]);
+  return (
+    <div className="df" ref={ref}>
+      <button type="button" className={clsx('input-wrap df-btn', open && 'open')} onClick={toggle}>
+        <CalendarDays size={16} />
+        <span className={clsx('grow', !value && 'muted')}>{value || placeholder}</span>
+        {value && <span role="button" tabIndex={0} className="df-clear" aria-label="Очистить" onClick={(e) => { e.stopPropagation(); onChange(undefined); }}><X size={14} /></span>}
+      </button>
+      {pos && (
+        <div className="cal-pop df-pop" style={{ top: pos.top, left: pos.left }}>
+          <Calendar mode="day" value={value ? toDate(value) : min ?? new Date()} min={min} max={max} onChange={(d) => { onChange(toStr(d)); setPos(null); }} />
+        </div>
+      )}
     </div>
   );
 }

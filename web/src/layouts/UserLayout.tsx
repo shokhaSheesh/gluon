@@ -1,11 +1,10 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { Home, KeyRound, Landmark, LogOut, MessageCircle, Plus, Search, Archive, ShoppingBag, User, Wallet, Send, Camera, Moon, Sun, ArrowLeftRight, CreditCard } from 'lucide-react';
 import { ConfirmModal, LangSelect, Logo, useClickOutside } from '../components/ui';
 import { BANKS } from '../data/mock';
 import { ServiceSwitcher } from './ServiceSwitcher';
-import { Notifications } from './Notifications';
 import { MobileTabBar } from './MobileTabBar';
 import { useBilling } from '../lib/billing';
 import { brandFor, useApplyBrand, useBranding } from '../lib/branding';
@@ -40,7 +39,6 @@ export default function UserLayout() {
   useApplyBrand(brand);
 
   const doLogout = () => { logout(); nav('/login'); };
-  const openBank = useCallback(() => setProfile('bank'), []);
 
   return (
     <Ctx.Provider value={{ openProfile: (s = 'profile') => setProfile(s), openTopUp: () => setTopUp(true), balance }}>
@@ -87,7 +85,6 @@ export default function UserLayout() {
                 <span className="u-balance-plus"><Plus size={14} /></span>
               </button>
               <LangSelect compact />
-              <Notifications bankClient={isBankClient} onOpenBank={openBank} />
               <div className="select" ref={menuRef}>
                 <button className="avatar" style={{ border: 'none' }} onClick={() => setMenu((m) => !m)} aria-label="profile menu">
                   {session?.name.split(' ').map((x) => x[0]).slice(0, 2).join('')}
@@ -153,7 +150,7 @@ export default function UserLayout() {
         onTopUp={() => setTopUp(true)}
         balance={balance}
       />
-      <TopUpModal open={topUp} onClose={() => setTopUp(false)} onSuccess={(amt) => billing.topUp(amt)} />
+      <TopUpModal open={topUp} onClose={() => setTopUp(false)} onSuccess={(amt, card) => billing.topUp(amt, card)} />
       <ConfirmModal open={confirmOut} onClose={() => setConfirmOut(false)} onConfirm={doLogout} text={t('logoutAsk')} confirmText={t('exit')} />
     </Ctx.Provider>
   );
