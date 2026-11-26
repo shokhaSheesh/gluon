@@ -153,3 +153,8 @@
 .be-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; }
 .be-product { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; background: var(--surface-2, var(--surface-3)); }
 @media (max-width: 860px) { .be { grid-template-columns: 1fr; } .be-preview { position: static; } }
+.be-val { display: grid; grid-template-columns: 180px 1fr; gap: 10px; align-items: center; }
+.pd-row { display: flex; gap: 8px; align-items: center; }
+.pd-row[data-drag='dragging'] { opacity: .4; }
+.pd-row[data-drag='over'] { box-shadow: 0 -2px 0 var(--primary); }
+@media (max-width: 600px) { .be-val { grid-template-columns: 1fr; gap: 4px; } }

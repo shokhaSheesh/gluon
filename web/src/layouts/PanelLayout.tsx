@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { ArrowLeftRight, FileText, GalleryHorizontal, CalendarCheck, Handshake, Landmark, Repeat, Tags, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
+import { ArrowLeftRight, ListTree, FileText, GalleryHorizontal, CalendarCheck, Handshake, Landmark, Repeat, Tags, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
 import { Badge, ConfirmModal, Field, Input, LangSelect, Logo, Modal, PasswordInput, PhoneInput, ThemeToggle } from '../components/ui';
 import { useApp, type Platform } from '../lib/store';
 import { chatContactIds, currentActor, orgOf, useMerchant, type Employee } from '../lib/merchant';
@@ -50,6 +50,7 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
       { to: `${base}/partners`, label: 'Партнёры', icon: <Handshake size={20} /> },
       { to: `${base}/services`, label: 'Сервисы', icon: <Blocks size={20} /> },
       { to: `${base}/banks`, label: 'Банки', icon: <Landmark size={20} /> },
+      { to: `${base}/bank-products`, label: 'Продукты банков', icon: <ListTree size={20} /> },
     ] },
     { title: 'Магазин', links: [
       { to: `${base}/banners`, label: 'Баннеры', icon: <GalleryHorizontal size={20} /> },

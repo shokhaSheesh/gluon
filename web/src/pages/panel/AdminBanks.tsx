@@ -6,7 +6,7 @@ import { BankCardLogo, BankCardView } from '../../components/BankCardView';
 import { moveItem, useDragList } from '../../components/useDragList';
 import { BANKS } from '../../data/mock';
 import { BANK_LOGOS } from '../../assets';
-import { ACC_LABEL, slug, useMerchant, type AccStatus, type BankCard, type BankProduct, type BankTerm } from '../../lib/merchant';
+import { ACC_LABEL, slug, useMerchant, type AccStatus, type BankCard, type BankTerm, type ProductDef } from '../../lib/merchant';
 import { useApp } from '../../lib/store';
 import { LogoUpload } from './AdminForms';
 import { Switch } from './AdminServices';
@@ -43,7 +43,7 @@ export default function AdminBanks() {
                   <td><span className="row gap-6"><GripVertical size={16} className="bn-grip" /><span className="bn-num">{i + 1}</span></span></td>
                   <td><BankCardLogo b={b} height={18} /></td>
                   <td className="t-sm">{b.terms.slice(0, 2).map((t, j) => <div key={j}><span className="muted">{t.label}:</span> <b className="medium">{t.value}</b></div>)}{b.terms.length > 2 && <span className="t-xs muted">ещё {b.terms.length - 2}</span>}</td>
-                  <td><div className="tm-chips">{b.products.map((p, j) => <span key={j} className="badge badge-neutral">{p.name}</span>)}</div></td>
+                  <td><div className="tm-chips">{b.products.map((p) => <span key={p.productId} className="badge badge-neutral">{m.bankProducts.find((d) => d.id === p.productId)?.name ?? '—'}</span>)}</div></td>
                   <td>★ {b.rating}</td>
                   <td>{b.online ? 'Да' : 'Нет'}</td>
                   <td><Switch label="Показывать" on={b.active} onChange={(v) => { m.saveBank({ ...b, active: v }); log(v ? 'Показал банк' : 'Скрыл банк', b.name); }} /></td>
@@ -62,10 +62,10 @@ export default function AdminBanks() {
       </div>
 
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit === 'new' ? 'Новый банк' : edit ? edit.name : ''} width={980}>
-        {edit && <BankEditor key={edit === 'new' ? 'new' : edit.id} bank={edit === 'new' ? undefined : edit} all={m.banks} onClose={() => setEdit(null)} onSave={(b) => {
+        {edit && <BankEditor key={edit === 'new' ? 'new' : edit.id} bank={edit === 'new' ? undefined : edit} all={m.banks} defs={m.bankProducts} onClose={() => setEdit(null)} onSave={(b) => {
           const exists = m.banks.some((x) => x.id === b.id);
           m.saveBank(b);
-          log(exists ? 'Изменил банк' : 'Добавил банк', b.name, `${b.products.length} продукт(а)`);
+          log(exists ? 'Изменил банк' : 'Добавил банк', b.name, b.products.map((p) => m.bankProducts.find((d) => d.id === p.productId)?.name).join(', ') || 'без продуктов');
           toast('success', exists ? 'Банк сохранён' : `${b.name} добавлен`);
           setEdit(null);
         }} />}
@@ -93,27 +93,19 @@ function RowsEditor({ rows, onChange, labelPh, valuePh, addText }: { rows: BankT
   );
 }
 
-function BankEditor({ bank, all, onClose, onSave }: { bank?: BankCard; all: BankCard[]; onClose: () => void; onSave: (b: BankCard) => void }) {
+function BankEditor({ bank, all, defs, onClose, onSave }: { bank?: BankCard; all: BankCard[]; defs: ProductDef[]; onClose: () => void; onSave: (b: BankCard) => void }) {
   const [f, setF] = useState<BankCard>(bank ? { ...bank, logo: bank.logo ?? BANK_LOGOS[bank.id]?.word } : { id: '', name: '', rating: 4.5, online: true, perk: '', terms: [{ label: 'Обслуживание', value: '' }, { label: 'Открытие счёта', value: '' }], products: [], active: true });
-  const [newProduct, setNewProduct] = useState('');
   const [err, setErr] = useState('');
-  const setProduct = (i: number, p: BankProduct) => setF({ ...f, products: f.products.map((x, j) => (j === i ? p : x)) });
-  const addProduct = () => {
-    const name = newProduct.trim();
-    if (!name || f.products.some((p) => p.name.toLowerCase() === name.toLowerCase())) return;
-    // same product at another bank → reuse its parameter names so the comparison table lines up
-    const like = all.flatMap((b) => b.products).find((p) => p.name.toLowerCase() === name.toLowerCase());
-    setF({ ...f, products: [...f.products, { name, params: like ? like.params.map((x) => ({ label: x.label, value: '' })) : [{ label: '', value: '' }] }] });
-    setNewProduct('');
-  };
+  const setValue = (pid: string, key: string, value: string) => setF({ ...f, products: f.products.map((p) => (p.productId === pid ? { ...p, values: { ...p.values, [key]: value } } : p)) });
+  const free = defs.filter((d) => !f.products.some((p) => p.productId === d.id));
   const clean = (rows: BankTerm[]) => rows.filter((r) => r.label.trim()).map((r) => ({ label: r.label.trim(), value: r.value.trim() }));
   const submit = () => {
     if (f.name.trim().length < 2) { setErr('Введите название банка'); return; }
     const id = bank?.id ?? slug(f.name);
     if (!bank && all.some((b) => b.id === id)) { setErr('Такой банк уже есть'); return; }
-    onSave({ ...f, id, name: f.name.trim(), perk: f.perk.trim(), terms: clean(f.terms), products: f.products.filter((p) => p.name.trim()).map((p) => ({ name: p.name.trim(), params: clean(p.params) })) });
+    onSave({ ...f, id, name: f.name.trim(), perk: f.perk.trim(), terms: clean(f.terms), products: f.products.filter((p) => defs.some((d) => d.id === p.productId)) });
   };
-  const preview: BankCard = { ...f, terms: f.terms.filter((t) => t.label || t.value), products: f.products.filter((p) => p.name) };
+  const preview: BankCard = { ...f, terms: f.terms.filter((t) => t.label || t.value) };
 
   return (
     <div className="be">
@@ -135,19 +127,28 @@ function BankEditor({ bank, all, onClose, onSave }: { bank?: BankCard; all: Bank
 
         <div className="be-block">
           <b className="t-sm">Продукты</b>
-          {f.products.map((p, i) => (
-            <div key={i} className="be-product">
-              <div className="row gap-8">
-                <Input className="grow" value={p.name} onChange={(e) => setProduct(i, { ...p, name: e.target.value })} placeholder="Название продукта" />
-                <button type="button" className="icon-btn sm" onClick={() => setF({ ...f, products: f.products.filter((_, j) => j !== i) })} aria-label="Удалить продукт" title="Удалить продукт"><Trash2 size={14} color="var(--error)" /></button>
+          {f.products.map((p) => {
+            const def = defs.find((d) => d.id === p.productId);
+            if (!def) return null;
+            return (
+              <div key={p.productId} className="be-product">
+                <div className="row between gap-8">
+                  <b className="t-sm">{def.name}</b>
+                  <button type="button" className="icon-btn sm" onClick={() => setF({ ...f, products: f.products.filter((x) => x.productId !== p.productId) })} aria-label="Убрать продукт" title="Убрать продукт"><Trash2 size={14} color="var(--error)" /></button>
+                </div>
+                {def.params.map((prm) => (
+                  <div key={prm.id} className="be-val">
+                    <span className="t-sm muted">{prm.label}</span>
+                    <Input value={p.values[prm.id] ?? ''} onChange={(e) => setValue(p.productId, prm.id, e.target.value)} placeholder="Значение" />
+                  </div>
+                ))}
+                {!def.params.length && <p className="t-xs muted">У продукта нет параметров — добавьте их в «Продукты банков».</p>}
               </div>
-              <RowsEditor rows={p.params} onChange={(params) => setProduct(i, { ...p, params })} labelPh="Параметр, напр. Годовой процент" valuePh="Значение, напр. 24%" addText="Добавить параметр" />
-            </div>
-          ))}
-          <div className="row gap-8">
-            <Input className="grow" value={newProduct} onChange={(e) => setNewProduct(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addProduct(); }} placeholder="Новый продукт, напр. Кредит" />
-            <button type="button" className="btn btn-secondary" onClick={addProduct} disabled={!newProduct.trim()}><Plus size={16} /> Добавить</button>
-          </div>
+            );
+          })}
+          {free.length > 0
+            ? <Select value="" placeholder="Добавить продукт" onChange={(id) => setF({ ...f, products: [...f.products, { productId: id, values: {} }] })} options={free.map((d) => ({ value: d.id, label: d.name }))} />
+            : <p className="t-xs muted">{defs.length ? 'Все продукты из справочника добавлены' : 'Справочник продуктов пуст — создайте продукты в «Продукты банков»'}</p>}
         </div>
 
         <div className="row gap-12">

@@ -12,13 +12,14 @@ const isFree = (b: BankCard) => b.terms.some((t) => /бесплат/i.test(t.val
 
 /** «Предложения банков»: everything here (cards, terms, products and their parameters) is managed by Gluon admin. */
 export default function Banking() {
-  const { banks: all } = useMerchant();
+  const { banks: all, bankProducts } = useMerchant();
   const [lead, setLead] = useState<Lead | null>(null);
   const [filter, setFilter] = useState<'all' | 'online' | 'free'>('all');
   const banks = all.filter((b) => b.active);
   const shown = banks.filter((b) => filter === 'all' || (filter === 'online' ? b.online : isFree(b)));
-  // one comparison table per product; columns = every parameter the admin typed for that product
-  const productNames = [...new Set(banks.flatMap((b) => b.products.map((p) => p.name)))];
+  // one comparison table per directory product (directory order); columns = the product's parameters
+  const tables = bankProducts.filter((d) => banks.some((b) => b.products.some((p) => p.productId === d.id)));
+  const nameOf = (id: string) => bankProducts.find((d) => d.id === id)?.name ?? '';
 
   return (
     <div className="col gap-16">
@@ -36,27 +37,28 @@ export default function Banking() {
         </div>
         <div className="bk-grid">
           {shown.map((b) => (
-            <BankCardView key={b.id} b={b} action={<button className="btn btn-primary btn-block" onClick={() => setLead({ bank: b, product: b.products[0]?.name ?? 'Расчётный счёт' })}>Открыть счёт</button>} />
+            <BankCardView key={b.id} b={b} action={<button className="btn btn-primary btn-block" onClick={() => setLead({ bank: b, product: nameOf(b.products[0]?.productId ?? '') || 'Расчётный счёт' })}>Открыть счёт</button>} />
           ))}
         </div>
       </section>
 
-      {productNames.map((name) => {
-        const rows = banks.map((b) => ({ b, p: b.products.find((x) => x.name === name) })).filter((x): x is { b: BankCard; p: BankCard['products'][number] } => !!x.p);
-        const cols = [...new Set(rows.flatMap(({ p }) => p.params.map((x) => x.label)))];
+      {tables.map((def) => {
+        const name = def.name;
+        const rows = banks.map((b) => ({ b, p: b.products.find((x) => x.productId === def.id) })).filter((x): x is { b: BankCard; p: BankCard['products'][number] } => !!x.p);
+        const cols = def.params;
         return (
-          <section key={name} className="section" style={{ padding: 0, overflow: 'hidden' }}>
+          <section key={def.id} className="section" style={{ padding: 0, overflow: 'hidden' }}>
             <h3 className="medium" style={{ padding: '14px 20px', fontSize: 16 }}>{name}</h3>
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Банк</th>{cols.map((c) => <th key={c}>{c}</th>)}<th /></tr></thead>
+                <thead><tr><th>Банк</th>{cols.map((c) => <th key={c.id}>{c.label}</th>)}<th /></tr></thead>
                 <tbody>
                   {rows.map(({ b, p }) => (
                     <tr key={b.id}>
                       <td><BankCardLogo b={b} height={16} /></td>
                       {cols.map((c) => {
-                        const v = p.params.find((x) => x.label === c)?.value ?? '—';
-                        return <td key={c}>{v === 'Нет' ? <span className="error-text">Нет</span> : v}</td>;
+                        const v = p.values[c.id] || '—';
+                        return <td key={c.id}>{v === 'Нет' ? <span className="error-text">Нет</span> : v}</td>;
                       })}
                       <td style={{ textAlign: 'right' }}><button className="btn btn-soft btn-sm" onClick={() => setLead({ bank: b, product: name })}>Подать заявку</button></td>
                     </tr>
@@ -75,7 +77,8 @@ export default function Banking() {
 
 function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const { session, toast } = useApp();
-  const { addAccountRequest } = useMerchant();
+  const { addAccountRequest, bankProducts } = useMerchant();
+  const nameOf = (id: string) => bankProducts.find((d) => d.id === id)?.name ?? '';
   const [f, setF] = useState({ fio: '', phone: '', company: 'ООО “Прометей”', inn: '123456789', product: '' });
   const [sent, setSent] = useState(false);
 
@@ -101,7 +104,7 @@ function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () => void }
             <span style={{ width: 120, display: 'inline-flex' }}><BankCardLogo b={lead.bank} height={22} /></span>
             <div><b>{lead.bank.name}</b><p className="t-sm muted">Данные компании будут переданы банку для открытия счёта</p></div>
           </div>
-          <Field label="Продукт"><Select value={f.product} onChange={(v) => setF({ ...f, product: v })} options={(lead.bank.products.length ? lead.bank.products.map((p) => p.name) : ['Расчётный счёт']).map((p) => ({ value: p, label: p }))} /></Field>
+          <Field label="Продукт"><Select value={f.product} onChange={(v) => setF({ ...f, product: v })} options={(lead.bank.products.length ? lead.bank.products.map((p) => nameOf(p.productId)) : ['Расчётный счёт']).map((p) => ({ value: p, label: p }))} /></Field>
           <Field label="ФИО"><Input value={f.fio} onChange={(e) => setF({ ...f, fio: e.target.value })} placeholder="Введите ФИО" /></Field>
           <Field label="Телефон номер"><PhoneInput value={f.phone} onChange={(v) => setF({ ...f, phone: v })} /></Field>
           <div className="row gap-12">

@@ -35,6 +35,7 @@ import BankDashboard from './pages/panel/merchant/BankDashboard';
 import BankServices from './pages/panel/merchant/BankServices';
 import AdminBanks, { AdminAccountRequests } from './pages/panel/AdminBanks';
 import AdminBanners from './pages/panel/AdminBanners';
+import AdminProducts from './pages/panel/AdminProducts';
 import Team from './pages/panel/merchant/Team';
 import { MerchantProvider } from './lib/merchant';
 import PanelDashboard from './pages/panel/PanelDashboard';
@@ -127,6 +128,7 @@ export default function App() {
             <Route path="partners" element={<AdminPartners />} />
             <Route path="services" element={<AdminServices />} />
             <Route path="banners" element={<AdminBanners />} />
+            <Route path="bank-products" element={<AdminProducts />} />
             <Route path="account-requests" element={<AdminAccountRequests />} />
             <Route path="chat" element={<PanelChat />} />
             <Route path="team" element={<Team />} />

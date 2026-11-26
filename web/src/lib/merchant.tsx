@@ -67,8 +67,11 @@ export interface AccountRequest {
 
 /** A label/value row typed by Gluon admin (e.g. «Обслуживание» — «Бесплатно»). */
 export interface BankTerm { label: string; value: string }
-/** A bank product with the parameters users see in the comparison tables (e.g. Кредит → Годовой процент 24%). */
-export interface BankProduct { name: string; params: BankTerm[] }
+/** Product directory (admin): a product and the parameters every bank fills in — the columns of its comparison table. */
+export interface ProductParam { id: string; label: string }
+export interface ProductDef { id: string; name: string; params: ProductParam[] }
+/** A bank's product: a directory product + the bank's values for its parameters (by parameter id). */
+export interface BankProduct { productId: string; values: Record<string, string> }
 /** Bank card in «Предложения банков» — managed by Gluon admin; array order = order for users. */
 export interface BankCard { id: string; name: string; logo?: string; rating: number; online: boolean; perk: string; terms: BankTerm[]; products: BankProduct[]; active: boolean }
 
@@ -78,6 +81,7 @@ interface MerchantData {
   accountRequests: AccountRequest[];
   bankServices: Record<string, string[]>;   // bank → service ids visible to its clients
   banks: BankCard[];
+  bankProducts: ProductDef[];                // directory; order = order of tables for users
   serviceOrder?: string[];                   // admin's order of services (store, lists)
   teams: Record<string, Team>;               // org id → employees & roles
   audit: Record<string, AuditEntry[]>;       // org id → journal (newest first)
@@ -244,6 +248,7 @@ function initial(): MerchantData {
       { id: 'bn-5', service: 'delever', title: 'Доставка без хаоса с Delever', active: false },
     ],
     banks: seedBanks(),
+    bankProducts: PRODUCT_DEFS,
   };
 }
 
@@ -255,6 +260,7 @@ interface MerchantState extends MerchantData {
   setBankServices: (bank: string, ids: string[]) => void;
   saveBank: (b: BankCard) => void;
   setBanks: (list: BankCard[]) => void;
+  setProductDefs: (list: ProductDef[]) => void;
   setServiceOrder: (ids: string[]) => void;
   addClient: (c: Omit<Client, 'id' | 'registered'>) => Client;
   addClientService: (clientId: string, service: string) => void;
@@ -274,7 +280,7 @@ interface MerchantState extends MerchantData {
 }
 
 const Ctx = createContext<MerchantState | null>(null);
-const KEY = 'gluon.merchant.v12';
+const KEY = 'gluon.merchant.v13';
 const today = () => new Date().toLocaleDateString('ru-RU');
 
 export function MerchantProvider({ children }: { children: ReactNode }) {
@@ -295,6 +301,7 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     setBankServices: (bank, ids) => setData((d) => ({ ...d, bankServices: { ...d.bankServices, [bank]: ids } })),
     saveBank: (b) => { registerBankCard(b); setData((d) => ({ ...d, banks: d.banks.some((x) => x.id === b.id) ? d.banks.map((x) => (x.id === b.id ? b : x)) : [...d.banks, b] })); },
     setBanks: (banks) => setData((d) => ({ ...d, banks })),
+    setProductDefs: (bankProducts) => setData((d) => ({ ...d, bankProducts })),
     setServiceOrder: (serviceOrder) => setData((d) => ({ ...d, serviceOrder })),
     addClient: (c) => {
       const client: Client = { ...c, id: `c-${Date.now()}`, registered: today() };
@@ -413,7 +420,7 @@ export const PAGES: Record<OrgKind, { id: string; label: string }[]> = {
   admin: [
     { id: 'dashboard', label: 'Дашборд' }, { id: 'companies', label: 'Компании' }, { id: 'subscriptions', label: 'Подписки' }, { id: 'account-requests', label: 'Заявки на счёт' },
     { id: 'payments', label: 'Платежи' }, { id: 'operations', label: 'Операции' }, { id: 'pricing', label: 'Тарифы' },
-    { id: 'partners', label: 'Партнёры' }, { id: 'services', label: 'Сервисы' }, { id: 'banks', label: 'Банки' }, { id: 'banners', label: 'Баннеры' },
+    { id: 'partners', label: 'Партнёры' }, { id: 'services', label: 'Сервисы' }, { id: 'banks', label: 'Банки' }, { id: 'bank-products', label: 'Продукты банков' }, { id: 'banners', label: 'Баннеры' },
     { id: 'chat', label: 'Чат' }, { id: 'team', label: 'Сотрудники и роли' }, { id: 'audit', label: 'Журнал действий' },
   ],
   service: [
@@ -585,12 +592,21 @@ export function registerBankCard(b: BankCard) {
 export const orderedServices = (order: string[] | undefined) => [...(order ?? []).filter((id) => SVC.includes(id)), ...SVC.filter((id) => !(order ?? []).includes(id))];
 
 const T = (label: string, value: string): BankTerm => ({ label, value });
+const P = (id: string, name: string, params: [string, string][]): ProductDef => ({ id, name, params: params.map(([pid, label]) => ({ id: pid, label })) });
+const PRODUCT_DEFS: ProductDef[] = [
+  P('account', 'Расчётный счёт', [['fee', 'Обслуживание'], ['open', 'Открытие'], ['currency', 'Валюта'], ['ib', 'Интернет-банк']]),
+  P('credit', 'Кредит', [['rate', 'Годовой процент'], ['max', 'Макс. сумма'], ['term', 'Срок'], ['decision', 'Решение'], ['fine', 'Штраф в день'], ['online', 'Онлайн']]),
+  P('installment', 'Рассрочка', [['free', 'Без процентов'], ['term', 'Макс. срок'], ['first', 'Первый взнос'], ['partners', 'Магазины-партнёры'], ['docs', 'Документы'], ['decision', 'Решение']]),
+  P('card', 'Бизнес-карта', [['issue', 'Выпуск'], ['cashback', 'Кэшбэк'], ['system', 'Платёжная система']]),
+  P('acquiring', 'Эквайринг', [['fee', 'Комиссия'], ['connect', 'Подключение'], ['terminal', 'Терминал']]),
+];
 function seedBanks(): BankCard[] {
-  const credit = (rate: string, max: string, term: string, approve: string, fine: string, online: boolean): BankProduct => ({ name: 'Кредит', params: [T('Годовой процент', rate), T('Макс. сумма', max), T('Срок', term), T('Решение', approve), T('Штраф в день', fine), T('Онлайн', online ? 'Да' : 'Нет')] });
-  const inst = (free: boolean, term: string, first: string, approve: string): BankProduct => ({ name: 'Рассрочка', params: [T('Без процентов', free ? 'Да' : 'Нет'), T('Макс. срок', term), T('Первый взнос', first), T('Магазины-партнёры', '137'), T('Документы', 'Паспорт'), T('Решение', approve)] });
-  const acc = (fee: string, open: string): BankProduct => ({ name: 'Расчётный счёт', params: [T('Обслуживание', fee), T('Открытие', open), T('Валюта', 'UZS, USD'), T('Интернет-банк', 'Да')] });
-  const card = (issue: string, cashback: string): BankProduct => ({ name: 'Бизнес-карта', params: [T('Выпуск', issue), T('Кэшбэк', cashback), T('Платёжная система', 'Uzcard, Visa')] });
-  const acq = (fee: string): BankProduct => ({ name: 'Эквайринг', params: [T('Комиссия', fee), T('Подключение', '1 день'), T('Терминал', 'Бесплатно')] });
+  const v = (productId: string, values: Record<string, string>): BankProduct => ({ productId, values });
+  const acc = (fee: string, open: string) => v('account', { fee, open, currency: 'UZS, USD', ib: 'Да' });
+  const credit = (rate: string, max: string, term: string, decision: string, fine: string, online: boolean) => v('credit', { rate, max, term, decision, fine, online: online ? 'Да' : 'Нет' });
+  const inst = (free: boolean, term: string, first: string, decision: string) => v('installment', { free: free ? 'Да' : 'Нет', term, first, partners: '137', docs: 'Паспорт', decision });
+  const card = (issue: string, cashback: string) => v('card', { issue, cashback, system: 'Uzcard, Visa' });
+  const acq = (fee: string) => v('acquiring', { fee, connect: '1 день', terminal: 'Бесплатно' });
   return [
     { id: 'hayot', name: 'Hayot Bank', rating: 4.8, online: true, perk: '0% за переводы первые 3 месяца', active: true,
       terms: [T('Обслуживание', 'Бесплатно'), T('Открытие счёта', '1 день')], products: [acc('Бесплатно', '1 день'), credit('24%', '300 млн сум', '60 мес.', '1–2 дня', '0,05%', true), inst(true, '12 мес.', '0–20%', '1 день')] },
