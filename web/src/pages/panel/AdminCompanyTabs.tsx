@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import clsx from 'clsx';
-import { ArrowDownLeft, ArrowUpRight, CreditCard, HardDrive, Repeat, Users, Wallet } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CreditCard, FileJson, HardDrive, Repeat, Users, Wallet } from 'lucide-react';
 import { Badge, formatPhone } from '../../components/ui';
 import { maskAccount } from '../../data/operations';
 import { sum } from '../../lib/billing';
-import { PAY_LABEL, fmtSum, useLedgers } from '../../lib/ledger';
+import { PAY_LABEL, fmtSum, useLedgers, type ProviderPayment } from '../../lib/ledger';
 import type { Client } from '../../lib/merchant';
-import { ItemMark, OpsTable } from './AdminFinance';
+import { ItemMark, OpsTable, ResponseModal } from './AdminFinance';
 import { Stat } from './AdminCompanies';
 import './merchant/merchant.css';
 
@@ -17,6 +17,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
   const ledgers = useLedgers();
   const l = ledgers.find((x) => x.c.id === c.id)?.l;
   const [tab, setTab] = useState<Tab>('overview');
+  const [resp, setResp] = useState<ProviderPayment | null>(null);
   if (!l) return <>{overview}</>;
   const activeSubs = l.subs.filter((s) => s.status === 'active' && (s.kind === 'service' || s.price > 0));
   const pctUsed = Math.round((l.storage.usedGb / l.storage.totalGb) * 100);
@@ -69,7 +70,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
         <div className="card" style={{ overflow: 'hidden' }}>
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Транзакция</th><th>Дата</th><th>Способ</th><th>Сумма</th><th>Комиссия</th><th>Статус</th></tr></thead>
+              <thead><tr><th>Транзакция</th><th>Дата</th><th>Способ</th><th>Сумма</th><th>Комиссия</th><th>Статус</th><th /></tr></thead>
               <tbody>
                 {l.payments.map((p) => (
                   <tr key={p.id + p.status}>
@@ -79,6 +80,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
                     <td className="strong" style={{ whiteSpace: 'nowrap' }}>{sum(p.amount)}</td>
                     <td className="muted">{p.status === 'success' ? sum(p.fee) : '—'}</td>
                     <td>{p.status === 'failed' ? <span className="col gap-2"><Badge kind="error">Ошибка</Badge><span className="t-xs muted">{p.error}</span></span> : <Badge kind={PAY_LABEL[p.status].kind}>{PAY_LABEL[p.status].label}</Badge>}</td>
+                    <td style={{ textAlign: 'right' }}><button className="btn btn-ghost btn-sm" onClick={() => setResp(p)}><FileJson size={14} /> Ответ</button></td>
                   </tr>
                 ))}
                 {!l.payments.length && <tr><td colSpan={6}><div className="empty-state">Платежей нет</div></td></tr>}
@@ -87,6 +89,8 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
           </div>
         </div>
       )}
+
+      <ResponseModal data={resp ? { p: resp, c } : null} onClose={() => setResp(null)} />
 
       {tab === 'bank' && (
         <div className="card" style={{ overflow: 'hidden' }}>

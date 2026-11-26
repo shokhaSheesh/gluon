@@ -11,69 +11,71 @@ import './merchant/merchant.css';
 const PRODUCTS = ['Расчётный счёт', 'Кредит', 'Рассрочка', 'Бизнес-карта', 'Эквайринг'];
 const bankOf = (id: string) => BANKS.find((b) => b.id === id)!;
 
-/** Gluon admin: bank cards in «Предложения банков» and the users' account-opening requests. */
+/** Gluon admin: bank cards in «Предложения банков». */
 export default function AdminBanks() {
   const { toast } = useApp();
   const m = useMerchant();
-  const [tab, setTab] = useState<'offers' | 'requests'>('offers');
   const [edit, setEdit] = useState<string | null>(null);
-  const [status, setStatus] = useState<'all' | AccStatus>('all');
-  const reqs = m.accountRequests.filter((r) => status === 'all' || r.status === status);
-
   return (
     <div className="col gap-16">
       <h1 className="h4">Банки</h1>
-      <div className="tabs-seg" style={{ alignSelf: 'flex-start' }}>
-        <button className={clsx(tab === 'offers' && 'active')} onClick={() => setTab('offers')}>Предложения <span className="op-tabcount">{Object.keys(m.bankOffers).length}</span></button>
-        <button className={clsx(tab === 'requests' && 'active')} onClick={() => setTab('requests')}>Заявки на счёт <span className="op-tabcount">{m.accountRequests.filter((r) => r.status === 'new').length}</span></button>
+      <div className="bk-grid">
+        {Object.entries(m.bankOffers).map(([id, t]) => (
+          <div key={id} className="col gap-8">
+            <OfferCard id={id} t={t} />
+            <button className="btn btn-secondary btn-sm" onClick={() => setEdit(id)}><Pencil size={14} /> Изменить</button>
+          </div>
+        ))}
       </div>
-
-      {tab === 'offers' ? (
-        <div className="bk-grid">
-          {Object.entries(m.bankOffers).map(([id, t]) => (
-            <div key={id} className="col gap-8">
-              <OfferCard id={id} t={t} />
-              <button className="btn btn-secondary btn-sm" onClick={() => setEdit(id)}><Pencil size={14} /> Изменить</button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <>
-          <div style={{ width: 220 }}>
-            <Select value={status} onChange={(v) => setStatus(v as 'all' | AccStatus)} options={[{ value: 'all', label: 'Все статусы' }, ...(Object.keys(ACC_LABEL) as AccStatus[]).map((s) => ({ value: s, label: ACC_LABEL[s].label }))]} />
-          </div>
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <div className="table-wrap">
-              <table className="table">
-                <thead><tr><th>Компания</th><th>Контакт</th><th>Банк</th><th>Продукт</th><th>Дата</th><th>Статус</th></tr></thead>
-                <tbody>
-                  {reqs.map((r) => {
-                    const c = m.clients.find((x) => x.id === r.clientId);
-                    return (
-                      <tr key={r.id}>
-                        <td><span className="col"><span className="strong" style={{ color: 'var(--text)' }}>{c?.company ?? '—'}</span><span className="t-xs muted">ИНН {c?.inn}</span></span></td>
-                        <td><span className="col"><span>{r.contact}</span><span className="t-xs muted">{formatPhone(r.phone)}</span></span></td>
-                        <td><BankLogo id={r.bank} name={bankOf(r.bank)?.name ?? r.bank} height={16} /></td>
-                        <td>{r.product}</td>
-                        <td>{r.date}</td>
-                        <td style={{ width: 190 }}>
-                          <Select value={r.status} onChange={(v) => { m.setAccountStatus(r.id, v as AccStatus); toast('success', `Статус: ${ACC_LABEL[v as AccStatus].label}`); }}
-                            options={(Object.keys(ACC_LABEL) as AccStatus[]).map((s) => ({ value: s, label: <Badge kind={ACC_LABEL[s].kind}>{ACC_LABEL[s].label}</Badge> }))} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {!reqs.length && <tr><td colSpan={6}><div className="empty-state">Заявок нет</div></td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit ? `Предложение: ${bankOf(edit)?.name}` : ''} width={820}>
         {edit && <OfferForm id={edit} offer={m.bankOffers[edit]} onClose={() => setEdit(null)} onSave={(o) => { m.setBankOffer(edit, o); toast('success', 'Предложение обновлено'); setEdit(null); }} />}
       </Modal>
+    </div>
+  );
+}
+
+/** Gluon admin: users' requests to open an account («Предложения банков» → «Открыть счёт»). */
+export function AdminAccountRequests() {
+  const { toast } = useApp();
+  const m = useMerchant();
+  const [status, setStatus] = useState<'all' | AccStatus>('all');
+  const reqs = m.accountRequests.filter((r) => status === 'all' || r.status === status);
+  return (
+    <div className="col gap-16">
+      <h1 className="h4">Заявки на счёт</h1>
+      <div className="tabs-seg" style={{ alignSelf: 'flex-start' }}>
+        {(['all', ...Object.keys(ACC_LABEL)] as ('all' | AccStatus)[]).map((k) => (
+          <button key={k} className={clsx(status === k && 'active')} onClick={() => setStatus(k)}>
+            {k === 'all' ? 'Все' : ACC_LABEL[k].label} <span className="op-tabcount">{k === 'all' ? m.accountRequests.length : m.accountRequests.filter((r) => r.status === k).length}</span>
+          </button>
+        ))}
+      </div>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Компания</th><th>Контакт</th><th>Банк</th><th>Продукт</th><th>Дата</th><th>Статус</th></tr></thead>
+            <tbody>
+              {reqs.map((r) => {
+                const c = m.clients.find((x) => x.id === r.clientId);
+                return (
+                  <tr key={r.id}>
+                    <td><span className="col"><span className="strong" style={{ color: 'var(--text)' }}>{c?.company ?? '—'}</span><span className="t-xs muted">ИНН {c?.inn}</span></span></td>
+                    <td><span className="col"><span>{r.contact}</span><span className="t-xs muted">{formatPhone(r.phone)}</span></span></td>
+                    <td><BankLogo id={r.bank} name={bankOf(r.bank)?.name ?? r.bank} height={16} /></td>
+                    <td>{r.product}</td>
+                    <td>{r.date}</td>
+                    <td style={{ width: 190 }}>
+                      <Select value={r.status} onChange={(v) => { m.setAccountStatus(r.id, v as AccStatus); toast('success', `Статус: ${ACC_LABEL[v as AccStatus].label}`); }}
+                        options={(Object.keys(ACC_LABEL) as AccStatus[]).map((x) => ({ value: x, label: <Badge kind={ACC_LABEL[x].kind}>{ACC_LABEL[x].label}</Badge> }))} />
+                    </td>
+                  </tr>
+                );
+              })}
+              {!reqs.length && <tr><td colSpan={6}><div className="empty-state">Заявок нет</div></td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

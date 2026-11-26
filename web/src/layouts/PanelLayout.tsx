@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { ArrowLeftRight, CalendarCheck, Handshake, Landmark, Repeat, Tags, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
+import { ArrowLeftRight, FileText, GalleryHorizontal, CalendarCheck, Handshake, Landmark, Repeat, Tags, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
 import { Badge, ConfirmModal, Field, Input, LangSelect, Logo, Modal, PasswordInput, PhoneInput, ThemeToggle } from '../components/ui';
 import { useApp, type Platform } from '../lib/store';
 import { chatContactIds, currentActor, orgOf, useMerchant, type Employee } from '../lib/merchant';
@@ -20,6 +20,7 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
   const { kind: mKind, org: mOrg } = orgOf(session);
   const team = mer.teamOf(mOrg, mKind);
   const me = team?.employees.find((e) => e.name === currentActor(team)) ?? null;
+  const newAccReq = platform === 'admin' ? mer.accountRequests.filter((r) => r.status === 'new').length : 0;
   const unreadChats = mer.unreadChats(session?.orgId ?? 'admin', chatContactIds(mer.clients, session?.platform, session?.kind, session?.orgId).ids).length;
 
   type Link = { to: string; label: string; icon: React.ReactNode; end?: boolean; badge?: number };
@@ -38,16 +39,20 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
     { title: 'Клиенты', links: [
       { to: `${base}/companies`, label: t('companies'), icon: <Building2 size={20} /> },
       { to: `${base}/subscriptions`, label: 'Подписки', icon: <Repeat size={20} /> },
+      { to: `${base}/account-requests`, label: 'Заявки на счёт', icon: <FileText size={20} />, badge: newAccReq },
     ] },
     { title: 'Финансы', links: [
       { to: `${base}/payments`, label: 'Платежи', icon: <CreditCard size={20} /> },
       { to: `${base}/operations`, label: 'Операции', icon: <ArrowLeftRight size={20} /> },
-      { to: `${base}/pricing`, label: 'Тарифы и цены', icon: <Tags size={20} /> },
+      { to: `${base}/pricing`, label: 'Тарифы', icon: <Tags size={20} /> },
     ] },
     { title: 'Партнёры', links: [
       { to: `${base}/partners`, label: 'Партнёры', icon: <Handshake size={20} /> },
-      { to: `${base}/services`, label: 'Сервисы и баннеры', icon: <Blocks size={20} /> },
+      { to: `${base}/services`, label: 'Сервисы', icon: <Blocks size={20} /> },
       { to: `${base}/banks`, label: 'Банки', icon: <Landmark size={20} /> },
+    ] },
+    { title: 'Магазин', links: [
+      { to: `${base}/banners`, label: 'Баннеры', icon: <GalleryHorizontal size={20} /> },
     ] },
     { title: 'Поддержка', links: [L.chat(base)] },
     { title: 'Настройки', links: [L.team(base), L.audit(base)] },

@@ -141,3 +141,22 @@ export function useLedgers() {
   const { prices, plans } = useBilling();
   return useMemo(() => clients.map((c) => ({ c, l: companyLedger(c, prices, plans, NAMES) })), [clients, prices, plans]);
 }
+
+const ERROR_CODE: Record<string, string> = {
+  'Недостаточно средств на карте': 'INSUFFICIENT_FUNDS', 'Карта заблокирована': 'CARD_BLOCKED', 'Неверный SMS-код': 'INVALID_OTP', 'Превышен лимит по карте': 'LIMIT_EXCEEDED',
+};
+/** What the payment provider (Plum) returned for this transaction — shown to Gluon admin as raw JSON. */
+export function providerResponse(p: ProviderPayment, company: { company: string; inn: string }) {
+  const [d, mth, y] = p.date.split('.');
+  const iso = `${y}-${mth}-${d}T${p.time}:${String((p.amount / 1000) % 60).padStart(2, '0')}+05:00`;
+  const base = {
+    transaction_id: p.id, merchant_id: 'GLUON-UZ-0001', status: p.status === 'success' ? 'SUCCESS' : p.status === 'failed' ? 'FAILED' : 'REFUNDED',
+    amount: p.amount * 100, currency: 'UZS', commission: p.status === 'success' ? p.fee * 100 : 0,
+    card: { type: p.method.toUpperCase(), masked_pan: p.card.replace(' •••• ', '******'), holder: null },
+    payer: { inn: company.inn, name: company.company },
+    purpose: 'Пополнение баланса Gluon', created_at: iso,
+  };
+  if (p.status === 'failed') return { ...base, error: { code: ERROR_CODE[p.error ?? ''] ?? 'DECLINED', message: p.error } };
+  if (p.status === 'refunded') return { ...base, refund: { refund_id: `${p.id}-R`, reason: 'DUPLICATE_PAYMENT', refunded_at: iso } };
+  return { ...base, rrn: String(400_000_000_000 + (Number(p.id.replace(/\D/g, '')) % 99_999_999)), auth_code: p.id.slice(-6) };
+}

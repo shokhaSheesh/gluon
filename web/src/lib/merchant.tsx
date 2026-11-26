@@ -1,3 +1,5 @@
+import { BANKS, SERVICES } from '../data/mock';
+import { BANK_LOGOS, LOGO_BY_NAME } from '../assets';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 /**
@@ -14,7 +16,9 @@ export type Channel = 'gluon' | 'kapital' | 'hayot';
 export type OrgKind = 'service' | 'bank' | 'admin';
 
 /** Partner cabinets created by Gluon admin. aggregator = bank-type cabinet (white-label, service switches, creates clients). */
-export interface Partner { id: string; name: string; aggregator: boolean; login: string; password: string; status: 'active' | 'blocked'; created: string; subdomain?: string }
+export interface Partner { id: string; name: string; aggregator: boolean; login: string; password: string; status: 'active' | 'blocked'; created: string; subdomain?: string; logo?: string }
+/** A service added by Gluon admin (the 5 built-in integrations live in data/mock). */
+export interface CatalogService { id: string; name: string; type: string; description: string; color: string; logo?: string }
 /** Store banner («Специальные предложения») tied to a service; order = array order. */
 export interface Banner { id: string; service: string; title: string; active: boolean }
 export type SubStatus = 'active' | 'unpaid';
@@ -75,6 +79,7 @@ interface MerchantData {
   partners: Partner[];
   recommended: Record<string, string[]>;     // 'gluon' = admin default; bank id = override for that bank's clients
   banners: Banner[];
+  catalog?: CatalogService[];
 }
 
 /** The two demo users (must match data/accounts.ts). */
@@ -262,6 +267,7 @@ interface MerchantState extends MerchantData {
   savePartner: (p: Partner) => void;
   setRecommended: (key: string, ids: string[]) => void;
   setBanners: (b: Banner[]) => void;
+  addService: (svc: CatalogService) => void;   // add or update (built-in services are overridden by id)
   log: (org: string, kind: OrgKind, e: Omit<AuditEntry, 'id' | 'at' | 'actor'> & { actor?: string }) => void;
 }
 
@@ -274,6 +280,9 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     try { const v = localStorage.getItem(KEY); return v ? (JSON.parse(v) as MerchantData) : initial(); } catch { return initial(); }
   });
   useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* storage unavailable */ } }, [data]);
+  // partners / services created by admin join the shared catalogs (store, logos, bank lists)
+  (data.catalog ?? []).forEach(registerService);
+  data.partners.forEach(registerPartner);
 
   const value = useMemo<MerchantState>(() => ({
     ...data,
@@ -299,6 +308,7 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     savePartner: (p) => setData((d) => ({ ...d, partners: d.partners.some((x) => x.id === p.id) ? d.partners.map((x) => (x.id === p.id ? p : x)) : [...d.partners, p] })),
     setRecommended: (key, ids) => setData((d) => ({ ...d, recommended: { ...d.recommended, [key]: ids } })),
     setBanners: (banners) => setData((d) => ({ ...d, banners })),
+    addService: (svc) => { registerService(svc); setData((d) => ({ ...d, catalog: [...(d.catalog ?? []).filter((x) => x.id !== svc.id), svc] })); },
     markChatRead: (org, id) => setData((d) => ((d.chatRead?.[org] ?? []).includes(id) ? d : { ...d, chatRead: { ...(d.chatRead ?? {}), [org]: [...(d.chatRead?.[org] ?? []), id] } })),
     auditOf: (org, kind) => data.audit?.[org] ?? defaultAudit(kind, data.teams?.[org] ?? defaultTeam(kind)),
     log: (org, kind, e) => setData((d) => {
@@ -326,7 +336,7 @@ export const initials = (company: string) => {
   return inner.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 };
 
-export const CHANNEL_LABEL: Record<Channel, string> = { gluon: 'Gluon', kapital: 'Kapitalbank', hayot: 'Hayot Bank' };
+export const CHANNEL_LABEL: Record<string, string> = { gluon: 'Gluon', kapital: 'Kapitalbank', hayot: 'Hayot Bank' };
 export const CONN_LABEL: Record<ConnStatus, { label: string; kind: 'warning' | 'success' | 'error' }> = {
   pending: { label: 'Ожидает', kind: 'warning' },
   approved: { label: 'Одобрена', kind: 'success' },
@@ -396,9 +406,9 @@ export interface Team { roles: Role[]; employees: Employee[] }
 
 export const PAGES: Record<OrgKind, { id: string; label: string }[]> = {
   admin: [
-    { id: 'dashboard', label: 'Дашборд' }, { id: 'companies', label: 'Компании' }, { id: 'subscriptions', label: 'Подписки' },
-    { id: 'payments', label: 'Платежи' }, { id: 'operations', label: 'Операции' }, { id: 'pricing', label: 'Тарифы и цены' },
-    { id: 'partners', label: 'Партнёры' }, { id: 'services', label: 'Сервисы и баннеры' }, { id: 'banks', label: 'Банки' },
+    { id: 'dashboard', label: 'Дашборд' }, { id: 'companies', label: 'Компании' }, { id: 'subscriptions', label: 'Подписки' }, { id: 'account-requests', label: 'Заявки на счёт' },
+    { id: 'payments', label: 'Платежи' }, { id: 'operations', label: 'Операции' }, { id: 'pricing', label: 'Тарифы' },
+    { id: 'partners', label: 'Партнёры' }, { id: 'services', label: 'Сервисы' }, { id: 'banks', label: 'Банки' }, { id: 'banners', label: 'Баннеры' },
     { id: 'chat', label: 'Чат' }, { id: 'team', label: 'Сотрудники и роли' }, { id: 'audit', label: 'Журнал действий' },
   ],
   service: [
@@ -538,3 +548,25 @@ export function orgOf(session: { platform: string; kind?: string; orgId?: string
 }
 /** Services recommended to a client: its bank's choice, otherwise Gluon's default. */
 export const recommendedFor = (rec: Record<string, string[]>, bank?: string) => (bank && rec[bank]) || rec.gluon || [];
+
+/** Make an admin-created service visible everywhere the built-in ones are listed. */
+export function registerService(svc: CatalogService) {
+  const known = SERVICES.find((x) => x.id === svc.id);
+  if (known) Object.assign(known, { type: svc.type, description: svc.description });
+  else {
+    SERVICES.push({ id: svc.id, name: svc.name, color: svc.color, mark: svc.name.slice(0, 1).toUpperCase(), type: svc.type, description: svc.description, status: 'available', price: 'по подписке' });
+  }
+  if (!SVC.includes(svc.id)) SVC.push(svc.id);
+  if (svc.logo) LOGO_BY_NAME[svc.name] = svc.logo;
+}
+/** Bank partners: name in channel lists, uploaded logo as the bank wordmark. */
+export function registerPartner(p: Partner) {
+  if (p.aggregator) {
+    if (!CHANNEL_LABEL[p.id]) CHANNEL_LABEL[p.id] = p.name;
+    if (!BANKS.some((b) => b.id === p.id)) BANKS.push({ id: p.id, name: p.name, color: '#1D3B6F', mark: p.name.slice(0, 1).toUpperCase() });
+    if (p.logo) BANK_LOGOS[p.id] = { word: p.logo, mark: p.logo };
+  } else if (p.logo) {
+    LOGO_BY_NAME[p.name] = p.logo;
+  }
+}
+export const slug = (s: string) => s.toLowerCase().replace(/[“”"«»']/g, '').replace(/bank|банк/gi, '').trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `p${Date.now() % 10000}`;

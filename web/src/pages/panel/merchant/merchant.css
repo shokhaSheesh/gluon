@@ -133,3 +133,11 @@
 .ac-stack { display: flex; height: 14px; border-radius: 99px; overflow: hidden; background: var(--surface-3); margin: 14px 0 16px; gap: 2px; }
 .ac-stack span { display: block; height: 100%; }
 .ac-parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 32px; }
+.lu { display: flex; gap: 12px; align-items: center; }
+.lu-box { width: 72px; height: 72px; border-radius: 14px; border: 1px dashed var(--border-strong, var(--border)); background: var(--surface-2, var(--surface-3)); color: var(--text-3); display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; cursor: pointer; }
+.lu-box.wide { width: 140px; }
+.lu-box img { max-width: 100%; max-height: 100%; object-fit: contain; padding: 6px; }
+.lu-box:hover { border-color: var(--primary); color: var(--primary); }
+.pf-apply { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 12px; background: var(--warning-soft); border: 1px solid var(--warning-border, var(--border)); }
+.pf-apply input { accent-color: var(--primary); }
+.af-json { margin: 0; max-height: 440px; overflow: auto; padding: 14px 16px; border-radius: 12px; background: #0f1a1a; color: #d6f5e3; font: 12.5px/1.55 ui-monospace, Menlo, monospace; white-space: pre; }

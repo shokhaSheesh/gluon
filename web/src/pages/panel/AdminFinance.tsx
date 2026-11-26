@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { AlertCircle, ArrowDownLeft, ArrowUpRight, Blocks, CreditCard, Download, Layers, Percent, Receipt, Repeat, Search, Wallet } from 'lucide-react';
-import { Badge, BrandMark, Pagination, Select } from '../../components/ui';
+import { AlertCircle, ArrowDownLeft, Check, Copy, FileJson, ArrowUpRight, Blocks, CreditCard, Download, Layers, Percent, Receipt, Repeat, Search, Wallet } from 'lucide-react';
+import { Badge, BrandMark, Modal, Pagination, Select } from '../../components/ui';
 import { SERVICES } from '../../data/mock';
 import { parseDate } from '../../lib/merchant';
 import { sum } from '../../lib/billing';
 import { useApp } from '../../lib/store';
 import { downloadXlsx } from '../../lib/excel';
-import { OP_LABEL, PAY_LABEL, fmtSum, useLedgers, type OpKind, type PayStatus, type SubKind } from '../../lib/ledger';
+import { OP_LABEL, PAY_LABEL, fmtSum, providerResponse, useLedgers, type OpKind, type PayStatus, type ProviderPayment, type SubKind } from '../../lib/ledger';
 import { PeriodFilter, inRange, rangeOf, type Period } from './merchant/period';
 import { Stat } from './AdminCompanies';
 import './merchant/merchant.css';
@@ -94,6 +94,25 @@ export function AdminSubscriptions() {
 }
 
 /* ---------------- Платежи (провайдер) ---------------- */
+/** Raw JSON the payment provider returned for a transaction. */
+export function ResponseModal({ data, onClose }: { data: { p: ProviderPayment; c: { company: string; inn: string } } | null; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const json = data ? JSON.stringify(providerResponse(data.p, data.c), null, 2) : '';
+  return (
+    <Modal open={!!data} onClose={onClose} title={data ? `Ответ провайдера · ${data.p.id}` : ''} width={620}>
+      {data && (
+        <div className="col gap-12" style={{ padding: 24 }}>
+          <div className="row between t-sm">
+            <span className="row gap-8"><Badge kind={PAY_LABEL[data.p.status].kind}>{PAY_LABEL[data.p.status].label}</Badge><span className="muted">Plum · {data.p.date} {data.p.time}</span></span>
+            <button className="btn btn-ghost btn-sm" onClick={() => { navigator.clipboard?.writeText(json).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1400); }}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Скопировано' : 'Копировать'}</button>
+          </div>
+          <pre className="af-json">{json}</pre>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 export function AdminPayments() {
   const { toast } = useApp();
   const nav = useNavigate();
@@ -103,6 +122,7 @@ export function AdminPayments() {
   const [method, setMethod] = useState('all');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
+  const [resp, setResp] = useState<{ p: ProviderPayment; c: { company: string; inn: string } } | null>(null);
   const r = rangeOf(period);
   const all = useMemo(() => ledgers.flatMap(({ c, l }) => l.payments.map((p) => ({ c, p }))).sort((a, b) => parseDate(b.p.date).getTime() - parseDate(a.p.date).getTime() || b.p.time.localeCompare(a.p.time)), [ledgers]);
   const inP = all.filter(({ c, p }) => inRange(parseDate(p.date), r) && (method === 'all' || p.method === method) && (c.company + p.id).toLowerCase().includes(q.toLowerCase()));
@@ -144,7 +164,7 @@ export function AdminPayments() {
       <div className="card" style={{ overflow: 'hidden' }}>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Транзакция</th><th>Компания</th><th>Способ</th><th>Сумма</th><th>Комиссия</th><th>Статус</th></tr></thead>
+            <thead><tr><th>Транзакция</th><th>Компания</th><th>Способ</th><th>Сумма</th><th>Комиссия</th><th>Статус</th><th /></tr></thead>
             <tbody>
               {view.map(({ c, p }) => (
                 <tr key={p.id + p.status} className="clickable" onClick={() => nav(`/admin/companies/${c.id}`)}>
@@ -154,14 +174,16 @@ export function AdminPayments() {
                   <td className="strong" style={{ whiteSpace: 'nowrap' }}>{sum(p.amount)}</td>
                   <td className="muted" style={{ whiteSpace: 'nowrap' }}>{p.status === 'success' ? sum(p.fee) : '—'}</td>
                   <td>{p.status === 'failed' ? <span className="col gap-2"><Badge kind="error">Ошибка</Badge><span className="t-xs muted">{p.error}</span></span> : <Badge kind={PAY_LABEL[p.status].kind}>{PAY_LABEL[p.status].label}</Badge>}</td>
+                  <td style={{ textAlign: 'right' }}><button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setResp({ p, c }); }}><FileJson size={14} /> Ответ</button></td>
                 </tr>
               ))}
-              {!view.length && <tr><td colSpan={6}><div className="empty-state">Платежей за этот период нет</div></td></tr>}
+              {!view.length && <tr><td colSpan={7}><div className="empty-state">Платежей за этот период нет</div></td></tr>}
             </tbody>
           </table>
         </div>
         {rows.length > PER && <Pagination page={page} total={Math.ceil(rows.length / PER)} onPage={setPage} />}
       </div>
+      <ResponseModal data={resp} onClose={() => setResp(null)} />
     </div>
   );
 }

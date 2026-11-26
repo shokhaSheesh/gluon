@@ -1,34 +1,23 @@
 import { useState } from 'react';
-import clsx from 'clsx';
-import { Pencil, Plus, Sparkles, Trash2, RotateCcw } from 'lucide-react';
-import { BrandMark, ConfirmModal, Field, Input, Modal } from '../../components/ui';
-import { SERVICES } from '../../data/mock';
+import { Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ConfirmModal, Field, Input, Modal } from '../../components/ui';
 import { gbLabel, sum, useBilling, type Plan } from '../../lib/billing';
 import { useApp } from '../../lib/store';
 import '../user/billing.css';
 
-/** Gluon admin: manages archive plans and the prices users pay for services through Gluon. */
+/** Gluon admin: Gluon plans (archive size, features, price). Service prices live on the services. */
 export default function Pricing() {
   const b = useBilling();
   const { toast } = useApp();
-  const [tab, setTab] = useState<'plans' | 'services'>('plans');
+  const tab: string = 'plans';
   const [edit, setEdit] = useState<Plan | null>(null);
   const [del, setDel] = useState<Plan | null>(null);
-  const [draft, setDraft] = useState<Record<string, string>>({});
 
   return (
     <div className="col gap-20">
       <div className="row between wrap gap-12">
-        <div>
-          <h1 className="h4">Тарифы и цены</h1>
-          <p className="t-sm muted">Изменения сразу видны пользователям в разделе «Подписки и тарифы» и в Магазине Gluon.</p>
-        </div>
+        <h1 className="h4">Тарифы</h1>
         <div className="row gap-12">
-          <div className="tabs-seg">
-            <button className={clsx(tab === 'plans' && 'active')} onClick={() => setTab('plans')}>Тарифы Gluon Архива</button>
-            <button className={clsx(tab === 'services' && 'active')} onClick={() => setTab('services')}>Цены сервисов</button>
-          </div>
-          <button className="btn btn-ghost btn-sm" title="Сбросить демо-данные" onClick={() => { b.reset(); toast('info', 'Демо-данные сброшены'); }}><RotateCcw size={14} /></button>
         </div>
       </div>
 
@@ -62,50 +51,7 @@ export default function Pricing() {
             </table>
           </div>
         </div>
-      ) : (
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px' }}>
-            <b className="medium">Подписки на сервисы через Gluon</b>
-            <p className="t-sm muted">Цена, которую пользователь платит с баланса Gluon за месяц использования сервиса.</p>
-          </div>
-          <div className="table-wrap">
-            <table className="table">
-              <thead><tr><th>Сервис</th><th>Тип</th><th>Цена для пользователя / мес</th><th>Активных подписок</th><th>Доход за месяц</th><th>Оплата через Gluon</th></tr></thead>
-              <tbody>
-                {SERVICES.map((s, i) => {
-                  const p = b.prices[s.id] ?? { price: 0, active: false };
-                  const val = draft[s.id] ?? String(p.price);
-                  const changed = Number(val.replace(/\D/g, '')) !== p.price;
-                  const subs = [820, 640, 1210, 310, 270][i];
-                  return (
-                    <tr key={s.id}>
-                      <td><span className="row gap-12"><BrandMark name={s.name} color={s.color} text={s.mark} size={30} /><b className="medium" style={{ color: 'var(--text)' }}>{s.name}</b></span></td>
-                      <td>{s.type}</td>
-                      <td>
-                        <span className="row gap-8">
-                          <div style={{ width: 170 }}>
-                            <Input value={Number(val.replace(/\D/g, '') || 0).toLocaleString('ru-RU')} onChange={(e) => setDraft({ ...draft, [s.id]: e.target.value })} suffixBox="сум" inputMode="numeric" />
-                          </div>
-                          {changed && (
-                            <button className="btn btn-primary btn-sm" onClick={() => {
-                              b.setPrice(s.id, { price: Number(val.replace(/\D/g, '')) });
-                              setDraft(({ [s.id]: _omit, ...rest }) => rest);
-                              toast('success', `Цена ${s.name} обновлена`);
-                            }}>Сохранить</button>
-                          )}
-                        </span>
-                      </td>
-                      <td>{subs}</td>
-                      <td className="strong">{sum(subs * p.price)}</td>
-                      <td><label className="switch"><input type="checkbox" checked={p.active} onChange={(e) => { b.setPrice(s.id, { active: e.target.checked }); toast('success', e.target.checked ? `${s.name}: оплата включена` : `${s.name}: оплата отключена`); }} /><span /></label></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       <PlanModal plan={edit} onClose={() => setEdit(null)} onSave={(p) => { b.savePlan(p); setEdit(null); toast('success', 'Тариф сохранён'); }} />
       <ConfirmModal open={!!del} onClose={() => setDel(null)} confirmText="Удалить" text={`Удалить тариф «${del?.name}»?`}

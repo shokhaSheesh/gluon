@@ -16,7 +16,8 @@ export interface Plan {
   active: boolean;          // visible to users
 }
 
-export interface ServicePrice { price: number; active: boolean }
+/** legacy: price kept for already-subscribed users when a change applies only to new users. */
+export interface ServicePrice { price: number; active: boolean; legacy?: number; changed?: { at: string; mode: 'all' | 'new'; from: number } }
 
 export type SubStatus = 'active' | 'unpaid' | 'trial';
 export interface ServiceSub { status: SubStatus; paidUntil: string; autoRenew: boolean }
