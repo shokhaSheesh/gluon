@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import { Blocks, Download, Link2, MessagesSquare, Search, UserCog, Users } from 'lucide-react';
+import { Blocks, Download, Landmark, Link2, MessagesSquare, Search, UserCog, Users } from 'lucide-react';
 import { Pagination, Select } from '../../../components/ui';
 import { AUDIT_SECTION, parseDate, useMerchant, type AuditSection } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
-import { downloadCsv } from './ServiceClients';
+import { downloadXlsx } from '../../../lib/excel';
 import { PeriodFilter, inRange, rangeOf, type Period } from './period';
 import './merchant.css';
 
 const PER = 15;
 const ICON: Record<AuditSection, React.ReactNode> = {
-  team: <UserCog size={14} />, chat: <MessagesSquare size={14} />, requests: <Link2 size={14} />, clients: <Users size={14} />, services: <Blocks size={14} />,
+  team: <UserCog size={14} />, chat: <MessagesSquare size={14} />, requests: <Link2 size={14} />, clients: <Users size={14} />, accounts: <Landmark size={14} />, services: <Blocks size={14} />,
 };
 
 /** Journal of employee actions: team & roles, chat, requests. */
@@ -43,9 +43,9 @@ export default function AuditLog() {
         <div className="row gap-12 wrap">
           <PeriodFilter value={period} onChange={(p) => { setPeriod(p); reset(); }} />
           <button className="btn btn-secondary" onClick={() => {
-            downloadCsv(`${org}-audit.csv`, ['Дата и время', 'Сотрудник', 'Раздел', 'Действие', 'Объект', 'Подробности'], rows.map((e) => [e.at, e.actor, labels[e.section] ?? '', e.action, e.target, e.details ?? '']));
+            downloadXlsx(`${org}-audit.xlsx`, 'Журнал действий', ['Дата и время', 'Сотрудник', 'Раздел', 'Действие', 'Объект', 'Подробности'], rows.map((e) => [e.at, e.actor, labels[e.section] ?? '', e.action, e.target, e.details ?? '']));
             toast('success', `Выгружено записей: ${rows.length}`);
-          }}><Download size={16} /> Экспорт</button>
+          }}><Download size={16} /> Экспорт в Excel</button>
         </div>
       </div>
 

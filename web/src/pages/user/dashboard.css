@@ -47,3 +47,8 @@
 }
 .ar-usage { width: 340px; }
 @media (max-width: 760px) { .ar-usage { width: 100%; } }
+/* «Скоро»: charts are placeholders until real service data is connected */
+.soon-wrap { position: relative; }
+.soon-body { display: flex; flex-direction: column; gap: 16px; filter: blur(3px) grayscale(.35); opacity: .55; pointer-events: none; user-select: none; }
+.soon-card { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 28px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 12px 32px rgba(16, 24, 40, .12); }
+.soon-off { opacity: .45; pointer-events: none; }

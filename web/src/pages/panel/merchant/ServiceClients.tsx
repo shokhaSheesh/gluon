@@ -4,20 +4,10 @@ import { Download, Search } from 'lucide-react';
 import { Badge, Pagination, Select, formatPhone } from '../../../components/ui';
 import { CHANNEL_LABEL, paidUntilOf, useMerchant, type Channel } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
+import { downloadXlsx } from '../../../lib/excel';
 import './merchant.css';
 
 const PER = 12;
-
-/** CSV with BOM so Excel opens Cyrillic correctly. */
-export function downloadCsv(name: string, head: string[], rows: (string | number)[][]) {
-  const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-  const csv = '﻿' + [head, ...rows].map((r) => r.map(esc).join(';')).join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
 
 /**
  * Service cabinet: companies that connected this service via Gluon.
@@ -41,8 +31,8 @@ export default function ServiceClients() {
   const total = Math.max(1, Math.ceil(rows.length / PER));
   const view = rows.slice((page - 1) * PER, page * PER);
 
-  const exportCsv = () => {
-    downloadCsv(`${svcId}-clients.csv`, ['Компания', 'Владелец', 'Телефон', 'Категория', 'Канал', 'Подписка', 'Оплачено до', 'Подключён'],
+  const exportXlsx = () => {
+    downloadXlsx(`${svcId}-clients.xlsx`, 'Клиенты', ['Компания', 'Владелец', 'Телефон', 'Категория', 'Канал', 'Подписка', 'Оплачено до', 'Подключён'],
       rows.map((c) => [c.company, c.owner, formatPhone(c.phone), c.category, CHANNEL_LABEL[c.channel], c.services[svcId].status === 'active' ? 'Оплачена' : 'Не оплачена', paidUntilOf(c, svcId), c.services[svcId].since]));
     toast('success', `Выгружено ${rows.length} клиентов`);
   };
@@ -51,7 +41,7 @@ export default function ServiceClients() {
     <div className="col gap-16">
       <div className="row between wrap gap-12">
         <div><h1 className="h4">Клиенты</h1><p className="t-sm muted">Всего: {mine.length}</p></div>
-        <button className="btn btn-secondary" onClick={exportCsv}><Download size={16} /> Экспорт в Excel</button>
+        <button className="btn btn-secondary" onClick={exportXlsx}><Download size={16} /> Экспорт в Excel</button>
       </div>
 
       <div className="mc-filters">

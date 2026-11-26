@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, KeyRound, MessageSquare, Pencil, Phone, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Ban, KeyRound, MessageSquare, Pencil, Phone, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Badge, BrandMark, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone } from '../../../components/ui';
 import { SERVICES } from '../../../data/mock';
-import { CATEGORIES, initials, paidUntilOf, useMerchant, type Client } from '../../../lib/merchant';
+import { CATEGORIES, genAccountNumber, initials, paidUntilOf, useMerchant, type Client, type ClientAccount } from '../../../lib/merchant';
+import { maskAccount } from '../../../data/operations';
 import { useApp } from '../../../lib/store';
 import { CredentialsModal, JOINED_LABEL } from './BankClients';
 import { genPassword } from './Team';
@@ -20,6 +21,8 @@ export default function BankClientDetail() {
   const [edit, setEdit] = useState(false);
   const [block, setBlock] = useState(false);
   const [issued, setIssued] = useState<{ company: string; login: string; password: string } | null>(null);
+  const [openAcc, setOpenAcc] = useState(false);
+  const [closeAcc, setCloseAcc] = useState<ClientAccount | null>(null);
   const log = (action: string, details?: string) => c && m.log(bank, 'bank', { section: 'clients', action, target: c.company, details });
 
   if (!c) {
@@ -87,6 +90,31 @@ export default function BankClientDetail() {
       </div>
 
       <section className="card" style={{ overflow: 'hidden' }}>
+        <div className="row between" style={{ padding: '14px 18px' }}>
+          <h3 className="medium">Расчётные счета <span className="muted t-sm">{(c.accounts ?? []).filter((a) => a.status === 'active').length}</span></h3>
+          <button className="btn btn-primary btn-sm" onClick={() => setOpenAcc(true)} disabled={c.blocked}><Plus size={14} /> Открыть счёт</button>
+        </div>
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Счёт</th><th>Номер</th><th>Валюта</th><th>Открыт</th><th>Статус</th><th /></tr></thead>
+            <tbody>
+              {(c.accounts ?? []).map((a) => (
+                <tr key={a.id}>
+                  <td className="strong" style={{ color: 'var(--text)' }}>{a.name}</td>
+                  <td className="mono-ish" style={{ fontFamily: 'ui-monospace, Menlo, monospace', whiteSpace: 'nowrap' }}>{a.number.replace(/(\d{4})(?=\d)/g, '$1 ')}</td>
+                  <td>{a.currency}</td>
+                  <td>{a.opened}</td>
+                  <td>{a.status === 'active' ? <Badge kind="success">Активен</Badge> : <span className="row gap-6"><Badge kind="neutral">Закрыт</Badge><span className="t-xs muted">{a.closed}</span></span>}</td>
+                  <td style={{ textAlign: 'right' }}>{a.status === 'active' && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }} onClick={() => setCloseAcc(a)}>Закрыть</button>}</td>
+                </tr>
+              ))}
+              {!(c.accounts ?? []).length && <tr><td colSpan={6}><div className="empty-state">Счетов пока нет</div></td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="card" style={{ overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px' }}><h3 className="medium">Подключённые сервисы <span className="muted t-sm">{services.length}</span></h3></div>
         <div className="table-wrap">
           <table className="table">
@@ -116,6 +144,48 @@ export default function BankClientDetail() {
       <ConfirmModal open={block} onClose={() => setBlock(false)} confirmText="Заблокировать" text={`Заблокировать ${c.company}? Клиент не сможет войти в Gluon.`}
         onConfirm={() => { m.updateClient(c.id, { blocked: true }); log('Заблокировал клиента'); setBlock(false); toast('success', 'Клиент заблокирован'); }} />
       <CredentialsModal data={issued} onClose={() => setIssued(null)} />
+      <Modal open={openAcc} onClose={() => setOpenAcc(false)} title="Открыть расчётный счёт" width={460}>
+        {openAcc && <OpenAccountForm bank={bank} taken={m.clients.flatMap((x) => (x.accounts ?? []).map((a) => a.number))} onClose={() => setOpenAcc(false)} onSave={(a) => {
+          m.updateClient(c.id, { accounts: [...(c.accounts ?? []), a] });
+          m.log(bank, 'bank', { section: 'accounts', action: 'Открыл расчётный счёт', target: c.company, details: `${a.currency} · ${maskAccount(a.number)}` });
+          toast('success', 'Счёт открыт');
+          setOpenAcc(false);
+        }} />}
+      </Modal>
+      <ConfirmModal open={!!closeAcc} onClose={() => setCloseAcc(null)} confirmText="Закрыть счёт" text={closeAcc ? `Закрыть счёт ${maskAccount(closeAcc.number)} (${closeAcc.currency})?` : ''}
+        onConfirm={() => {
+          if (!closeAcc) return;
+          const today = new Date().toLocaleDateString('ru-RU');
+          m.updateClient(c.id, { accounts: (c.accounts ?? []).map((a) => (a.id === closeAcc.id ? { ...a, status: 'closed', closed: today } : a)) });
+          m.log(bank, 'bank', { section: 'accounts', action: 'Закрыл расчётный счёт', target: c.company, details: `${closeAcc.currency} · ${maskAccount(closeAcc.number)}` });
+          toast('success', 'Счёт закрыт');
+          setCloseAcc(null);
+        }} />
+    </div>
+  );
+}
+
+function OpenAccountForm({ bank, taken, onClose, onSave }: { bank: string; taken: string[]; onClose: () => void; onSave: (a: ClientAccount) => void }) {
+  const gen = (cur: 'UZS' | 'USD') => { let n = genAccountNumber(bank, cur); while (taken.includes(n)) n = genAccountNumber(bank, cur); return n; };
+  const [f, setF] = useState({ name: 'Расчётный счёт', currency: 'UZS' as 'UZS' | 'USD', number: gen('UZS') });
+  const [err, setErr] = useState('');
+  return (
+    <div className="col gap-16" style={{ padding: 24 }}>
+      <Field label="Название счёта" error={err}><Input value={f.name} onChange={(e) => { setF({ ...f, name: e.target.value }); setErr(''); }} error={!!err} /></Field>
+      <Field label="Валюта"><Select value={f.currency} onChange={(v) => { const cur = v as 'UZS' | 'USD'; setF({ ...f, currency: cur, number: gen(cur) }); }} options={[{ value: 'UZS', label: 'UZS — сум' }, { value: 'USD', label: 'USD — доллар США' }]} /></Field>
+      <Field label="Номер счёта">
+        <div className="row gap-8">
+          <Input className="grow" value={f.number.replace(/(\d{4})(?=\d)/g, '$1 ')} disabled />
+          <button type="button" className="icon-btn" onClick={() => setF({ ...f, number: gen(f.currency) })} aria-label="Другой номер" title="Другой номер"><RefreshCw size={16} /></button>
+        </div>
+      </Field>
+      <div className="row gap-12">
+        <button className="btn btn-secondary grow" onClick={onClose}>Отмена</button>
+        <button className="btn btn-primary grow" onClick={() => {
+          if (!f.name.trim()) { setErr('Введите название'); return; }
+          onSave({ id: `acc-${Date.now()}`, number: f.number, currency: f.currency, name: f.name.trim(), opened: new Date().toLocaleDateString('ru-RU'), status: 'active' });
+        }}>Открыть счёт</button>
+      </div>
     </div>
   );
 }

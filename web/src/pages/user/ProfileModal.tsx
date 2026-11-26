@@ -181,8 +181,16 @@ function BankAccounts() {
   const [f, setF] = useState({ bank: '', number: '', name: '' });
   const [err, setErr] = useState<Record<string, string>>({});
   const [del, setDel] = useState<string | null>(null);
-  const { accountRequests } = useMerchant();
+  const { accountRequests, clients } = useMerchant();
   const myId = session?.kind === 'bank' ? KAPITAL_CLIENT_ID : DEMO_CLIENT_ID;
+  // accounts the partner bank opened for this client (managed in the bank cabinet, read-only here)
+  const fromBank = session?.kind === 'bank' && session.orgId
+    ? (clients.find((c) => c.id === myId)?.accounts ?? []).filter((a) => a.status === 'active').map((a) => {
+        const known = ACCOUNTS.find((x) => x.number === a.number);
+        return { id: a.id, bank: session.orgId!, number: a.number, name: `${a.name} · ${a.currency}`, lastStatement: known?.lastStatement ?? '—', ops: known?.ops ?? 0, byBank: true };
+      })
+    : [];
+  const list = [...fromBank, ...accounts.filter((a) => !fromBank.some((b) => b.number === a.number || b.bank === a.bank)).map((a) => ({ ...a, byBank: false }))];
   const requests = accountRequests.filter((r) => r.clientId === myId);
   const bank = (id: string) => BANKS.find((b) => b.id === id)!;
 
@@ -224,18 +232,18 @@ function BankAccounts() {
       </div>
       <p className="t-sm muted mt-4">Операции по счетам появляются после загрузки выписки в разделе «Операции».</p>
       <div className="col gap-12 mt-16">
-        {accounts.map((a) => {
+        {list.map((a) => {
           const b = bank(a.bank);
           return (
             <div key={a.id} className="pm-acc">
               <BrandMark name={b.name} color={b.color} text={b.mark} size={40} />
               <div className="grow">
-                <p className="medium">{a.name} <span className="muted t-sm">· {b.name}</span></p>
+                <p className="medium">{a.name} <span className="muted t-sm">· {b.name}</span>{a.byBank && <span className="badge badge-primary" style={{ marginLeft: 8 }}>Открыт банком</span>}</p>
                 <p className="t-sm" style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}>{maskAccount(a.number)}</p>
                 <p className="t-xs muted">{a.ops ? `Последняя выписка: ${a.lastStatement} · ${a.ops} операций` : 'Выписки ещё не загружались'}</p>
               </div>
               <a className="btn btn-soft btn-sm" href="/app/operations"><Upload size={14} /> Загрузить выписку</a>
-              <button className="icon-btn sm" onClick={() => setDel(a.id)} aria-label="delete"><Trash2 size={14} color="var(--error)" /></button>
+              {!a.byBank && <button className="icon-btn sm" onClick={() => setDel(a.id)} aria-label="delete"><Trash2 size={14} color="var(--error)" /></button>}
             </div>
           );
         })}

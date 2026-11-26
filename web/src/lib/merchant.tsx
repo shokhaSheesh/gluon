@@ -28,6 +28,17 @@ export interface Client {
   services: Record<string, ClientService>;
   credentials?: { login: string; password: string }; // issued by a bank (login = phone)
   blocked?: boolean;                                   // blocked by the bank — cannot sign in
+  accounts?: ClientAccount[];                          // settlement accounts opened by the client's bank
+  lastActive?: string;                                 // last sign-in (dd.mm.yyyy); empty = never signed in
+}
+
+/** Расчётный счёт opened by the bank for its client (shown in the client's profile → «Банк аккаунт»). */
+export interface ClientAccount { id: string; number: string; currency: 'UZS' | 'USD'; name: string; opened: string; status: 'active' | 'closed'; closed?: string }
+
+const MFO: Record<string, string> = { kapital: '01158', hayot: '01183' };
+/** 20-digit account number: 20208 (settlement) + currency code + bank MFO + 7 digits. */
+export function genAccountNumber(bank: string, currency: 'UZS' | 'USD', seedN = Math.floor(Math.random() * 1e7)) {
+  return `20208${currency === 'USD' ? '840' : '000'}${MFO[bank] ?? '01000'}${String(seedN % 1e7).padStart(7, '0')}`;
 }
 
 export type ConnStatus = 'pending' | 'approved' | 'rejected';
@@ -99,6 +110,10 @@ function genClients(): Client[] {
       registered: fmtDate(new Date(Math.min(parseDate(dateFrom(i, 6 + (i % 6))).getTime(), ...Object.values(services).map((x) => parseDate(x.since).getTime() - 86_400_000 * (3 + (i % 9)))))),
       plan: PLANS[i % PLANS.length],
       services,
+      accounts: channel !== 'gluon' ? [
+        { id: `acc-${i}-1`, number: genAccountNumber(channel, 'UZS', 1_000_003 + i * 7_919), currency: 'UZS', name: 'Основной счёт', opened: dateFrom(i, 6 + (i % 6)), status: 'active' },
+        ...(i % 3 === 0 ? [{ id: `acc-${i}-2`, number: genAccountNumber(channel, 'USD', 2_000_011 + i * 3_571), currency: 'USD' as const, name: 'Валютный счёт', opened: dateFrom(i + 2, 7 + (i % 5)), status: (i % 2 ? 'closed' : 'active') as 'active' | 'closed', closed: i % 2 ? '10.11.2026' : undefined }] : []),
+      ] : undefined,
       credentials: { login: `9${(i * 37) % 10}${String(1_000_000 + ((i * 912_773) % 8_999_999)).slice(0, 7)}`, password: `client${100 + i}` },
     };
   });
@@ -112,6 +127,7 @@ function genClients(): Client[] {
   fresh.forEach(([company, category, owner, registered, joined, phone, svcs], k) => list.push({
     id: `c-kb-${k + 1}`, company, inn: String(311_200_100 + k * 7_313), owner, phone, address: `Ташкент, ${STREETS[(k + 3) % STREETS.length]}`, category,
     channel: 'kapital', joined, registered, plan: 'base', credentials: { login: phone, password: `client${200 + k}` },
+    accounts: k === 2 ? [] : [{ id: `acc-kb-${k}`, number: genAccountNumber('kapital', 'UZS', 3_000_017 + k * 4_111), currency: 'UZS' as const, name: 'Основной счёт', opened: registered, status: 'active' as const }],
     services: Object.fromEntries(svcs.map((sv) => [sv, { status: 'active' as const, since: registered, paidUntil: registered.replace('.11.', '.12.') }])),
   }));
   // the two demo users (Gluon User / Kapitalbank User) — same data as on the user side
@@ -120,8 +136,21 @@ function genClients(): Client[] {
       services: { robosell: { status: 'active', since: '10.09.2026', paidUntil: '10.12.2026' }, billz: { status: 'active', since: '10.08.2026', paidUntil: '10.12.2026' }, robohub: { status: 'unpaid', since: '20.10.2026', paidUntil: '20.11.2026' } } },
     { id: KAPITAL_CLIENT_ID, company: 'ООО “Sagadiev Trade”', inn: '305667788', owner: 'Сагадиев Алишер', phone: '909876543', address: 'Ташкент, ул. Навои 30', category: 'Электроника', channel: 'kapital', joined: 'bank', registered: '02.10.2026', plan: 'base',
       services: { billz: { status: 'active', since: '05.10.2026', paidUntil: '05.12.2026' }, robosell: { status: 'active', since: '05.10.2026', paidUntil: '05.12.2026' } },
-      credentials: { login: '909876543', password: 'kapital123' } },
+      credentials: { login: '909876543', password: 'kapital123' },
+      accounts: [
+        { id: 'acc-kb-main', number: '20208000900987655678', currency: 'UZS', name: 'Основной счёт', opened: '02.10.2026', status: 'active' },
+        { id: 'acc-kb-usd', number: '20208840001158004321', currency: 'USD', name: 'Валютный счёт', opened: '15.10.2026', status: 'active' },
+      ] },
   );
+  // last sign-in: most clients are active, some went quiet, a few bank-created ones never signed in
+  const AGO = [0, 1, 2, 4, 7, 12, 19, 27, 38, 55, 74, 96, 130, 180];
+  list.forEach((c, i) => {
+    if (c.id === DEMO_CLIENT_ID || c.id === KAPITAL_CLIENT_ID) { c.lastActive = fmtDate(TODAY); return; }
+    if (c.joined === 'bank' && i % 6 === 4) return;
+    const d = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - AGO[(i * 5) % AGO.length]);
+    const reg = parseDate(c.registered);
+    c.lastActive = fmtDate(d < reg ? reg : d);
+  });
   return list;
 }
 
@@ -203,7 +232,7 @@ interface MerchantState extends MerchantData {
 }
 
 const Ctx = createContext<MerchantState | null>(null);
-const KEY = 'gluon.merchant.v7';
+const KEY = 'gluon.merchant.v9';
 const today = () => new Date().toLocaleDateString('ru-RU');
 
 export function MerchantProvider({ children }: { children: ReactNode }) {
@@ -370,12 +399,12 @@ export function defaultTeam(kind: 'service' | 'bank'): Team {
 }
 
 /* ---------- audit log: team, chat and requests actions of a merchant organisation ---------- */
-export type AuditSection = 'team' | 'chat' | 'requests' | 'clients' | 'services';
+export type AuditSection = 'team' | 'chat' | 'requests' | 'clients' | 'accounts' | 'services';
 export interface AuditEntry { id: string; at: string /* dd.mm.yyyy HH:mm */; actor: string; section: AuditSection; action: string; target: string; details?: string }
 /** Sections each cabinet logs (in tab order). */
 export const AUDIT_SECTION: Record<'service' | 'bank', Partial<Record<AuditSection, string>>> = {
   service: { team: 'Сотрудники и роли', chat: 'Чат', requests: 'Заявки на подключение' },
-  bank: { clients: 'Клиенты', services: 'Сервисы для клиентов', team: 'Сотрудники и роли', chat: 'Чат' },
+  bank: { clients: 'Клиенты', accounts: 'Расчётные счета', services: 'Сервисы для клиентов', team: 'Сотрудники и роли', chat: 'Чат' },
 };
 
 /** The signed-in person — the demo signs in as the organisation owner. */
@@ -408,7 +437,12 @@ function defaultAudit(kind: 'service' | 'bank', team: Team): AuditEntry[] {
     [owner, 'team', 'Добавил сотрудника', support, 'Роль: Поддержка'],
     [owner, 'team', 'Добавил сотрудника', manager, 'Роль: Менеджер'],
     [owner, sec, req[0][0], co[20], req[0][1]],
-    ...(bank ? [[owner, 'services', 'Отключил сервис', 'Delever', 'Скрыт для новых клиентов'] as [string, AuditSection, string, string, string]] : []),
+    ...(bank ? [
+      [owner, 'services', 'Отключил сервис', 'Delever', 'Скрыт для новых клиентов'],
+      [manager, 'accounts', 'Открыл расчётный счёт', co[1], 'UZS · 2020 8000 •••• 2210'],
+      [manager, 'accounts', 'Закрыл расчётный счёт', co[9], 'USD · 2020 8840 •••• 7731'],
+      [support, 'accounts', 'Открыл расчётный счёт', co[15], 'USD · 2020 8840 •••• 0918'],
+    ] as [string, AuditSection, string, string, string][] : []),
     [owner, 'chat', 'Отправил сообщение', co[1]],
     [owner, 'team', 'Изменил права роли', 'Менеджер', 'Заявки: изменение'],
   ];

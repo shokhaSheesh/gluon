@@ -9,7 +9,7 @@ import { useApp } from '../../../lib/store';
 import { ANIM } from '../../../lib/chart';
 import { PeriodFilter, bucketsOf, inRange, rangeLabel, rangeOf, type Period } from './period';
 import { bankName } from './BankClients';
-import { pct } from './serviceStats';
+import { fmtMonths, pct, tenureOf } from './serviceStats';
 import './merchant.css';
 
 const C_SELF = 'var(--primary)', C_BANK = '#E9B000';
@@ -43,6 +43,13 @@ export default function BankDashboard() {
     .sort((a, b) => b[1] - a[1]).slice(0, 6);
   const maxSvc = Math.max(1, ...services.map((x) => x.n));
 
+  /* how long the bank's clients use services (connection → lapse or end of period) */
+  const pairs = base.flatMap((c) => SERVICE_IDS.filter((id) => c.services[id] && parseDate(c.services[id].since) <= r.to).map((id) => ({ id, t: tenureOf(c, id, r.to) })));
+  const avgOf = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+  const usage = SERVICE_IDS.map((id) => ({ s: SERVICES.find((x) => x.id === id)!, t: avgOf(pairs.filter((p) => p.id === id).map((p) => p.t)), n: pairs.filter((p) => p.id === id).length }))
+    .filter((x) => x.n).sort((a, b) => b.t - a.t);
+  const maxUse = Math.max(1, ...usage.map((x) => x.t));
+
   return (
     <div className="col gap-20">
       <div className="row between wrap gap-12">
@@ -61,6 +68,7 @@ export default function BankDashboard() {
       </div>
 
       <div className="mc-row">
+        <div className="col gap-20" style={{ minWidth: 0 }}>
         <section className="card db-card">
           <h3 className="medium">Новые клиенты</h3>
           <div style={{ height: 250, marginTop: 12 }}>
@@ -77,7 +85,23 @@ export default function BankDashboard() {
           </div>
           <div className="db-legend"><span><i style={{ background: C_SELF }} />По ссылке банка</span><span><i style={{ background: C_BANK }} />Создан банком</span></div>
         </section>
+        <section className="card db-card">
+          <h3 className="medium">Какими сервисами пользуются</h3>
+          <div className="col gap-12 mt-12">
+            {services.map(({ s, n }) => (
+              <div key={s.id} className="bd-svc">
+                <BrandMark name={s.name} color={s.color} text={s.mark} size={32} />
+                <div className="grow col gap-4" style={{ minWidth: 0 }}>
+                  <div className="row between t-sm"><b className="medium">{s.name}</b><span className="row gap-8"><b>{n}</b><span className="muted db-pct">{pct(n, base.length)}%</span></span></div>
+                  <div className="db-bar"><span style={{ width: `${(n / maxSvc) * 100}%`, background: s.color }} /></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+        </div>
 
+        <div className="col gap-20" style={{ minWidth: 0 }}>
         <section className="card db-card">
           <h3 className="medium">Как пришли клиенты</h3>
           <div className="row gap-16 wrap" style={{ marginTop: 8 }}>
@@ -104,23 +128,6 @@ export default function BankDashboard() {
             </div>
           </div>
         </section>
-      </div>
-
-      <div className="db-two">
-        <section className="card db-card">
-          <h3 className="medium">Какими сервисами пользуются</h3>
-          <div className="col gap-12 mt-12">
-            {services.map(({ s, n }) => (
-              <div key={s.id} className="bd-svc">
-                <BrandMark name={s.name} color={s.color} text={s.mark} size={32} />
-                <div className="grow col gap-4" style={{ minWidth: 0 }}>
-                  <div className="row between t-sm"><b className="medium">{s.name}</b><span className="row gap-8"><b>{n}</b><span className="muted db-pct">{pct(n, base.length)}%</span></span></div>
-                  <div className="db-bar"><span style={{ width: `${(n / maxSvc) * 100}%`, background: s.color }} /></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
         <section className="card db-card">
           <h3 className="medium">Клиенты по категориям</h3>
           <div className="col gap-12 mt-12">
@@ -133,7 +140,25 @@ export default function BankDashboard() {
             {!cats.length && <p className="muted t-sm">Нет данных</p>}
           </div>
         </section>
+        </div>
       </div>
+
+        <section className="card db-card">
+          <h3 className="medium">Сколько пользуются сервисами</h3>
+          <div className="row gap-8" style={{ alignItems: 'baseline', marginTop: 6 }}><b className="h3">{fmtMonths(avgOf(pairs.map((p) => p.t)))}</b><span className="t-sm muted">в среднем по всем сервисам</span></div>
+          <div className="bd-use mt-12">
+            {usage.map(({ s, t, n }) => (
+              <div key={s.id} className="bd-svc">
+                <BrandMark name={s.name} color={s.color} text={s.mark} size={32} />
+                <div className="grow col gap-4" style={{ minWidth: 0 }}>
+                  <div className="row between t-sm"><b className="medium">{s.name}</b><span className="row gap-8"><b>{fmtMonths(t)}</b><span className="muted t-xs">{n} клиент.</span></span></div>
+                  <div className="db-bar"><span style={{ width: `${(t / maxUse) * 100}%`, background: s.color }} /></div>
+                </div>
+              </div>
+            ))}
+            {!usage.length && <p className="muted t-sm">Нет данных</p>}
+          </div>
+        </section>
     </div>
   );
 }

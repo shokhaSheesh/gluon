@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { CalendarCheck, Landmark, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, Search, KeyRound, User, X } from 'lucide-react';
+import { CalendarCheck, Landmark, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
 import { Badge, ConfirmModal, Field, Input, LangSelect, Logo, Modal, PasswordInput, PhoneInput, ThemeToggle } from '../components/ui';
 import { useApp, type Platform } from '../lib/store';
 import { chatContactIds, currentActor, useMerchant, type Employee } from '../lib/merchant';
@@ -70,7 +70,6 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
             <button className="icon-btn p-collapse" onClick={toggleSide} aria-label={collapsed ? 'Развернуть меню' : 'Свернуть меню'} title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}>
               {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
-            <label className="u-search" style={{ width: 300 }}><Search size={16} /><input placeholder={t('search')} /></label>
           </div>
           <div className="row gap-12">
             <ThemeToggle />

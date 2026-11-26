@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowLeft, Phone, CalendarCheck, CalendarClock, Clock, D
 import { Badge, formatPhone } from '../../../components/ui';
 import { CHANNEL_LABEL, autoRenewOf, initials, paidUntilOf, servicePayments, useMerchant } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
-import { downloadCsv } from './ServiceClients';
+import { downloadXlsx } from '../../../lib/excel';
 import { RenewalStatus } from './ServiceSubscriptions';
 import './merchant.css';
 
@@ -83,9 +83,9 @@ export default function ServiceClientDetail() {
         <div className="row between" style={{ padding: '14px 18px' }}>
           <h3 className="medium">История подписки</h3>
           <button className="btn btn-ghost btn-sm" onClick={() => {
-            downloadCsv(`${svcId}-${c.id}-periods.csv`, ['С', 'По', 'Срок', 'Дата оплаты', 'Статус'], periods.map((p) => [p.from, p.to, `${p.months} мес.`, p.paid ? p.paidOn : '—', p.kind === 'failed' ? 'Не оплачено' : p.late ? `С опозданием (${p.late} дн.)` : 'Оплачено']));
+            downloadXlsx(`${svcId}-${c.id}-periods.xlsx`, 'История подписки', ['С', 'По', 'Срок', 'Дата оплаты', 'Статус'], periods.map((p) => [p.from, p.to, `${p.months} мес.`, p.paid ? p.paidOn : '—', p.kind === 'failed' ? 'Не оплачено' : p.late ? `С опозданием (${p.late} дн.)` : 'Оплачено']));
             toast('success', 'История подписки выгружена');
-          }}><Download size={14} /> Экспорт</button>
+          }}><Download size={14} /> Экспорт в Excel</button>
         </div>
         <div className="table-wrap">
           <table className="table">

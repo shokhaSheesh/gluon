@@ -120,3 +120,4 @@ button.svc-item:hover { background: var(--surface-3); }
   .u-balance > svg { display: none; }
   .brand-logo img { height: 22px; max-width: 150px; }
 }
+.nav-soon { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 99px; background: var(--warning-soft); color: var(--warning); margin-left: 2px; }

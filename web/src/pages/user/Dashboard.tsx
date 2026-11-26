@@ -33,7 +33,7 @@ export default function Dashboard() {
     <div className="col gap-16">
       <div className="section" style={{ padding: '0 16px 0 8px' }}>
         <div className="row between gap-16 d-top">
-          <div className="row gap-12 d-filters">
+          <div className="row gap-12 d-filters soon-off" aria-disabled>
             <div className="tabs-line" style={{ borderBottom: 'none' }}>
               {PERIODS.map((p, i) => (
                 <button key={p} className={clsx(period === i && 'active')} onClick={() => setPeriod(i)}>{p}</button>
@@ -62,6 +62,9 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* charts are not final yet — shown dimmed behind a «Скоро» card */}
+      <div className="soon-wrap">
+        <div className="soon-body" aria-hidden inert>
       <div className={clsx('d-kpis', !gluonUser && 'no-promo')}>
         <Kpi title="Общий оборот" value={`${fmt(k(48_789_500))} сум`} trend={4.6} />
         <Kpi title="Средний чек" value={`${fmt(svc === "all" ? 172_500 : Math.round(172_500 * (0.8 + share)))} сум`} trend={12.3} />
@@ -185,6 +188,13 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+        </div>
+        <div className="soon-card">
+          <span className="badge badge-warning">Скоро</span>
+          <h3 className="h4">Дашборд в разработке</h3>
+          <p className="t-sm muted">Здесь появится аналитика продаж из подключённых сервисов.</p>
         </div>
       </div>
     </div>

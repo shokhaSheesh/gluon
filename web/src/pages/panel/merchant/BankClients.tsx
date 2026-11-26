@@ -1,14 +1,23 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Copy, Download, Eye, EyeOff, Search, UserPlus, Wand2 } from 'lucide-react';
+import { Activity, Building2, Check, Copy, Download, Eye, EyeOff, Link2, Search, UserPlus, Users, Wand2 } from 'lucide-react';
 import { Badge, Field, Input, Modal, Pagination, PhoneInput, Select, formatPhone } from '../../../components/ui';
-import { CATEGORIES, CHANNEL_LABEL, useMerchant, type Channel, type Client } from '../../../lib/merchant';
+import { CATEGORIES, CHANNEL_LABEL, TODAY, parseDate, useMerchant, type Channel, type Client } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
-import { downloadCsv } from './ServiceClients';
+import { downloadXlsx } from '../../../lib/excel';
 import { genPassword } from './Team';
 import './merchant.css';
 
 const PER = 12;
+type ActivityKey = 'all' | '30' | '90' | '90+';
+const ACTIVITY: Record<ActivityKey, string> = { all: 'За всё время', '30': '30 дней', '90': '90 дней', '90+': '90+ дней' };
+const daysSince = (d?: string) => (d ? Math.floor((TODAY.getTime() - parseDate(d).getTime()) / 86_400_000) : Infinity);
+/** all: signed in at least once · 30 / 90: signed in within the window · 90+: last sign-in more than 90 days ago (or never) */
+const isActive = (c: Client, k: ActivityKey) => {
+  const d = daysSince(c.lastActive);
+  return k === 'all' ? !!c.lastActive : k === '90+' ? d > 90 : d <= Number(k);
+};
+
 export const JOINED_LABEL: Record<Client['joined'], string> = { self: 'По ссылке банка', bank: 'Создан банком' };
 
 /** Bank cabinet: companies that use Gluon through this bank. */
@@ -23,6 +32,7 @@ export default function BankClients() {
   const [page, setPage] = useState(1);
   const [create, setCreate] = useState(false);
   const [issued, setIssued] = useState<{ company: string; login: string; password: string } | null>(null);
+  const [activity, setActivity] = useState<ActivityKey>('30');
 
   const mine = useMemo(() => m.clients.filter((c) => c.channel === bank), [m.clients, bank]);
   const digits = q.replace(/\D/g, '');
@@ -35,14 +45,41 @@ export default function BankClients() {
   return (
     <div className="col gap-16">
       <div className="row between wrap gap-12">
-        <div><h1 className="h4">Клиенты</h1><p className="t-sm muted">Всего: {mine.length}</p></div>
+        <h1 className="h4">Клиенты</h1>
         <div className="row gap-12">
           <button className="btn btn-secondary" onClick={() => {
-            downloadCsv(`${bank}-clients.csv`, ['Компания', 'ИНН', 'Владелец', 'Телефон', 'Категория', 'Адрес', 'Как пришёл', 'Сервисов', 'Дата регистрации', 'Статус'],
-              rows.map((c) => [c.company, c.inn, c.owner, formatPhone(c.phone), c.category, c.address, JOINED_LABEL[c.joined], Object.keys(c.services).length, c.registered, c.blocked ? 'Заблокирован' : 'Активен']));
+            downloadXlsx(`${bank}-clients.xlsx`, 'Клиенты', ['Компания', 'ИНН', 'Владелец', 'Телефон', 'Категория', 'Адрес', 'Как пришёл', 'Счетов', 'Сервисов', 'Дата регистрации', 'Последний вход', 'Статус'],
+              rows.map((c) => [c.company, c.inn, c.owner, formatPhone(c.phone), c.category, c.address, JOINED_LABEL[c.joined], (c.accounts ?? []).filter((a) => a.status === 'active').length, Object.keys(c.services).length, c.registered, c.lastActive ?? 'Не входил', c.blocked ? 'Заблокирован' : 'Активен']));
             toast('success', `Выгружено клиентов: ${rows.length}`);
-          }}><Download size={16} /> Экспорт</button>
+          }}><Download size={16} /> Экспорт в Excel</button>
           <button className="btn btn-primary" onClick={() => setCreate(true)}><UserPlus size={16} /> Создать клиента</button>
+        </div>
+      </div>
+
+      <div className="p-stats">
+        <div className="p-stat">
+          <span className="p-stat-ic" style={{ background: 'linear-gradient(135deg,#2f4d4d,#5b8a8a)' }}><Users size={22} /></span>
+          <div><p><b>{mine.length}</b></p><p className="t-sm muted">Всего клиентов</p></div>
+        </div>
+        <div className="p-stat">
+          <span className="p-stat-ic" style={{ background: 'linear-gradient(135deg,#079455,#47cd89)' }}><Activity size={22} /></span>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="row between gap-8">
+              <p><b>{mine.filter((c) => isActive(c, activity)).length}</b></p>
+              <select className="kpi-sel" value={activity} onChange={(e) => setActivity(e.target.value as ActivityKey)} aria-label="Период активности">
+                {(Object.keys(ACTIVITY) as ActivityKey[]).map((k) => <option key={k} value={k}>{ACTIVITY[k]}</option>)}
+              </select>
+            </div>
+            <p className="t-sm muted">{activity === '90+' ? 'Неактивные' : 'Активные'}</p>
+          </div>
+        </div>
+        <div className="p-stat">
+          <span className="p-stat-ic" style={{ background: 'linear-gradient(135deg,#b54708,#f79009)' }}><Building2 size={22} /></span>
+          <div><p><b>{mine.filter((c) => c.joined === 'bank').length}</b></p><p className="t-sm muted">Через банк</p></div>
+        </div>
+        <div className="p-stat">
+          <span className="p-stat-ic" style={{ background: 'linear-gradient(135deg,#1570ef,#53b1fd)' }}><Link2 size={22} /></span>
+          <div><p><b>{mine.filter((c) => c.joined === 'self').length}</b></p><p className="t-sm muted">По ссылке</p></div>
         </div>
       </div>
 
@@ -55,7 +92,7 @@ export default function BankClients() {
       <div className="card" style={{ overflow: 'hidden' }}>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Компания</th><th>ИНН</th><th>Телефон</th><th>Категория</th><th>Как пришёл</th><th>Сервисы</th><th>Регистрация</th></tr></thead>
+            <thead><tr><th>Компания</th><th>ИНН</th><th>Телефон</th><th>Категория</th><th>Как пришёл</th><th>Счета</th><th>Сервисы</th><th>Последний вход</th></tr></thead>
             <tbody>
               {view.map((c) => (
                 <tr key={c.id} className="clickable" onClick={() => nav(c.id)}>
@@ -69,11 +106,12 @@ export default function BankClients() {
                   <td style={{ whiteSpace: 'nowrap' }}>{formatPhone(c.phone)}</td>
                   <td>{c.category}</td>
                   <td>{c.joined === 'bank' ? <Badge kind="primary">{JOINED_LABEL.bank}</Badge> : <Badge kind="neutral">{JOINED_LABEL.self}</Badge>}</td>
+                  <td>{(c.accounts ?? []).filter((a) => a.status === 'active').length}</td>
                   <td>{Object.keys(c.services).length}</td>
-                  <td>{c.registered}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{c.lastActive ?? <span className="muted">Не входил</span>}</td>
                 </tr>
               ))}
-              {!view.length && <tr><td colSpan={7}><div className="empty-state">Клиенты не найдены</div></td></tr>}
+              {!view.length && <tr><td colSpan={8}><div className="empty-state">Клиенты не найдены</div></td></tr>}
             </tbody>
           </table>
         </div>

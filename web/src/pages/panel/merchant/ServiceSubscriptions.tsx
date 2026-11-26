@@ -5,7 +5,7 @@ import { Download, Search } from 'lucide-react';
 import { Badge, Pagination } from '../../../components/ui';
 import { useMerchant } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
-import { downloadCsv } from './ServiceClients';
+import { downloadXlsx } from '../../../lib/excel';
 import { PeriodFilter, inRange, rangeOf, type Period } from './period';
 import { renewalsOf, type Renewal, type RenewalKind } from './serviceStats';
 import './merchant.css';
@@ -42,8 +42,8 @@ export default function ServiceSubscriptions() {
   const count = (k: 'all' | RenewalKind) => (k === 'all' ? inPeriod.length : inPeriod.filter((x) => x.kind === k).length);
   const reset = () => setPage(1);
 
-  const exportCsv = () => {
-    downloadCsv(`${svcId}-subscriptions.csv`, ['Компания', 'Владелец', 'С', 'По', 'Срок', 'Дата оплаты', 'Статус'],
+  const exportXlsx = () => {
+    downloadXlsx(`${svcId}-subscriptions.xlsx`, 'Подписки', ['Компания', 'Владелец', 'С', 'По', 'Срок', 'Дата оплаты', 'Статус'],
       rows.map((x) => [x.client.company, x.client.owner, x.from, x.to, `${x.months} мес.`, x.kind === 'failed' ? '—' : x.paidOn,
         x.kind === 'failed' ? 'Не оплачено' : x.kind === 'late' ? `С опозданием (${x.late} дн.)` : 'Оплачено']));
     toast('success', `Выгружено подписок: ${rows.length}`);
@@ -55,7 +55,7 @@ export default function ServiceSubscriptions() {
         <h1 className="h4">Подписки</h1>
         <div className="row gap-12 wrap">
           <PeriodFilter value={period} onChange={(p) => { setPeriod(p); reset(); }} />
-          <button className="btn btn-secondary" onClick={exportCsv}><Download size={16} /> Экспорт</button>
+          <button className="btn btn-secondary" onClick={exportXlsx}><Download size={16} /> Экспорт в Excel</button>
         </div>
       </div>
 

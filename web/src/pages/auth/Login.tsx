@@ -10,7 +10,7 @@ import { DEMO_ACCOUNTS, type DemoAccount } from '../../data/accounts';
 
 export default function Login() {
   const { t, login, toast } = useApp();
-  const { clients } = useMerchant();
+  const { clients, updateClient } = useMerchant();
   const nav = useNavigate();
   const [platform, setPlatform] = useState<Platform>('user');
   const [loginValue, setLoginValue] = useState('');
@@ -52,6 +52,7 @@ export default function Login() {
       platform: 'user', kind: client!.channel === 'gluon' ? 'gluon' : 'bank', name: client!.owner, login: client!.phone,
       org: client!.channel === 'gluon' ? undefined : CHANNEL_LABEL[client!.channel], orgId: client!.channel === 'gluon' ? undefined : client!.channel,
     };
+    if (client) updateClient(client.id, { lastActive: new Date().toLocaleDateString('ru-RU') });
     login(s);
     toast('success', 'С возвращением!');
     nav(PLATFORM_HOME[platform]);
