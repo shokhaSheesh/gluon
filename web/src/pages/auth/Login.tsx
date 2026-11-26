@@ -59,7 +59,11 @@ export default function Login() {
     };
     if (client) updateClient(client.id, { lastActive: new Date().toLocaleDateString('ru-RU') });
     login(s);
-    toast('success', 'С возвращением!');
+    // one user base for every domain: a bank's client who signs in on gluon.uz is sent to the bank's platform
+    if (s.platform === 'user' && s.kind === 'bank' && s.orgId) {
+      const host = partners.find((p) => p.id === s.orgId)?.subdomain ?? `${s.orgId}.gluon.uz`;
+      toast('success', `Вы клиент ${s.org}: открываем ${host}`);
+    } else toast('success', 'С возвращением!');
     nav(PLATFORM_HOME[platform]);
   };
 
