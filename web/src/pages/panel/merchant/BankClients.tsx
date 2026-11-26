@@ -32,11 +32,11 @@ export default function BankClients() {
   const [page, setPage] = useState(1);
   const [create, setCreate] = useState(false);
   const [issued, setIssued] = useState<{ company: string; login: string; password: string } | null>(null);
-  const [activity, setActivity] = useState<ActivityKey>('30');
+  const [activity, setActivity] = useState<ActivityKey>('all');
 
   const mine = useMemo(() => m.clients.filter((c) => c.channel === bank), [m.clients, bank]);
   const digits = q.replace(/\D/g, '');
-  const rows = mine.filter((c) => (joined === 'all' || c.joined === joined) && (cat === 'all' || c.category === cat)
+  const rows = mine.filter((c) => (joined === 'all' || c.joined === joined) && (cat === 'all' || c.category === cat) && (activity === 'all' || isActive(c, activity))
     && ((c.company + c.owner).toLowerCase().includes(q.toLowerCase()) || (digits.length >= 3 && (c.phone.includes(digits.replace(/^998/, '')) || c.inn.includes(digits)))));
   const total = Math.max(1, Math.ceil(rows.length / PER));
   const view = rows.slice((page - 1) * PER, page * PER);
@@ -63,15 +63,7 @@ export default function BankClients() {
         </div>
         <div className="p-stat">
           <span className="p-stat-ic" style={{ background: 'linear-gradient(135deg,#079455,#47cd89)' }}><Activity size={22} /></span>
-          <div className="grow" style={{ minWidth: 0 }}>
-            <div className="row between gap-8">
-              <p><b>{mine.filter((c) => isActive(c, activity)).length}</b></p>
-              <select className="kpi-sel" value={activity} onChange={(e) => setActivity(e.target.value as ActivityKey)} aria-label="Период активности">
-                {(Object.keys(ACTIVITY) as ActivityKey[]).map((k) => <option key={k} value={k}>{ACTIVITY[k]}</option>)}
-              </select>
-            </div>
-            <p className="t-sm muted">{activity === '90+' ? 'Неактивные' : 'Активные'}</p>
-          </div>
+          <div><p><b>{mine.filter((c) => isActive(c, activity)).length}</b></p><p className="t-sm muted">{activity === '90+' ? 'Неактивные 90+ дней' : activity === 'all' ? 'Активные' : `Активные за ${ACTIVITY[activity]}`}</p></div>
         </div>
         <div className="p-stat">
           <span className="p-stat-ic" style={{ background: 'linear-gradient(135deg,#b54708,#f79009)' }}><Building2 size={22} /></span>
@@ -86,6 +78,7 @@ export default function BankClients() {
       <div className="mc-filters">
         <label className="u-search" style={{ display: 'flex', width: 300 }}><Search size={16} /><input placeholder="Компания, владелец, ИНН, телефон" value={q} onChange={(e) => { setQ(e.target.value); reset(); }} /></label>
         <div style={{ width: 200 }}><Select value={joined} onChange={(v) => { setJoined(v); reset(); }} options={[{ value: 'all', label: 'Все клиенты' }, { value: 'self', label: JOINED_LABEL.self }, { value: 'bank', label: JOINED_LABEL.bank }]} /></div>
+        <div style={{ width: 210 }}><Select value={activity} onChange={(v) => { setActivity(v as ActivityKey); reset(); }} options={(Object.keys(ACTIVITY) as ActivityKey[]).map((k) => ({ value: k, label: k === 'all' ? 'Любая активность' : k === '90+' ? 'Неактивны 90+ дней' : `Активны ${ACTIVITY[k]}` }))} /></div>
         <div style={{ width: 210 }}><Select value={cat} onChange={(v) => { setCat(v); reset(); }} options={[{ value: 'all', label: 'Все категории' }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]} /></div>
       </div>
 
