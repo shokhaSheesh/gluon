@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Ban, KeyRound, MessageSquare, Pencil, Phone, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Badge, BrandMark, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone } from '../../../components/ui';
 import { SERVICES } from '../../../data/mock';
-import { CATEGORIES, genAccountNumber, initials, paidUntilOf, useMerchant, type Client, type ClientAccount } from '../../../lib/merchant';
+import { BLOCK_REASONS, CATEGORIES, currentActor, genAccountNumber, initials, paidUntilOf, useMerchant, type Client, type ClientAccount } from '../../../lib/merchant';
 import { maskAccount } from '../../../data/operations';
 import { useApp } from '../../../lib/store';
 import { CredentialsModal, JOINED_LABEL } from './BankClients';
@@ -53,15 +53,11 @@ export default function BankClientDetail() {
           <button className="btn btn-secondary" onClick={() => nav('/merchant/chat')}><MessageSquare size={16} /> Написать в чат</button>
           <button className="btn btn-secondary" onClick={() => setEdit(true)}><Pencil size={16} /> Изменить</button>
           {c.blocked
-            ? <button className="btn btn-secondary" onClick={() => { m.updateClient(c.id, { blocked: false }); log('Разблокировал компанию'); toast('success', 'Компания разблокирована'); }}><ShieldCheck size={16} /> Разблокировать</button>
+            ? <button className="btn btn-secondary" onClick={() => { m.updateClient(c.id, { blocked: false, block: undefined }); log('Разблокировал компанию'); toast('success', 'Компания разблокирована'); }}><ShieldCheck size={16} /> Разблокировать</button>
             : <button className="btn btn-secondary" style={{ color: 'var(--error)' }} onClick={() => setBlock(true)}><Ban size={16} /> Заблокировать</button>}
         </div>
       </div>
-      {c.blocked && (
-        <div className="bl-alert" style={{ marginTop: 0, background: 'var(--error-soft)', borderColor: 'var(--error-border, var(--error))', color: 'var(--error)' }}>
-          <Ban size={18} /><span className="grow">Компания заблокирована: владелец и сотрудники не могут войти в Gluon.</span>
-        </div>
-      )}
+      {c.blocked && <BlockBanner client={c} />}
 
       <div className="bc-grid">
         <section className="card db-card">
@@ -145,8 +141,16 @@ export default function BankClientDetail() {
           setEdit(false);
         }} />}
       </Modal>
-      <ConfirmModal open={block} onClose={() => setBlock(false)} confirmText="Заблокировать" text={`Заблокировать ${c.company}? Владелец и сотрудники компании не смогут войти в Gluon.`}
-        onConfirm={() => { m.updateClient(c.id, { blocked: true }); log('Заблокировал компанию'); setBlock(false); toast('success', 'Компания заблокирована'); }} />
+      <Modal open={block} onClose={() => setBlock(false)} title="Заблокировать компанию" width={480}>
+        {block && <BlockForm company={c.company} onClose={() => setBlock(false)} onSave={(reason, note) => {
+          const now = new Date();
+          const at = `${now.toLocaleDateString('ru-RU')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          m.updateClient(c.id, { blocked: true, block: { reason, note, at, by: currentActor(m.teamOf(bank, 'bank')), org: bank } });
+          log('Заблокировал компанию', note ? `${reason}: ${note}` : reason);
+          setBlock(false);
+          toast('success', 'Компания заблокирована');
+        }} />}
+      </Modal>
       <CredentialsModal data={issued} onClose={() => setIssued(null)} />
       <Modal open={openAcc} onClose={() => setOpenAcc(false)} title="Открыть расчётный счёт" width={460}>
         {openAcc && <OpenAccountForm bank={bank} taken={m.clients.flatMap((x) => (x.accounts ?? []).map((a) => a.number))} onClose={() => setOpenAcc(false)} onSave={(a) => {
@@ -224,6 +228,43 @@ function EditClientForm({ client, onClose, onSave }: { client: Client; onClose: 
       <div className="row gap-12">
         <button className="btn btn-secondary grow" onClick={onClose}>Отмена</button>
         <button className="btn btn-primary grow" onClick={submit}>Сохранить</button>
+      </div>
+    </div>
+  );
+}
+
+/** Why the company is blocked — the same banner in the bank, service and admin cabinets. */
+export function BlockBanner({ client, who }: { client: Client; who?: string }) {
+  const b = client.block;
+  return (
+    <div className="bl-alert cb-banner">
+      <Ban size={18} />
+      <div className="grow col gap-4" style={{ minWidth: 0 }}>
+        <b>Компания заблокирована{who ? ` · ${who}` : ''}{b ? `: ${b.reason}` : ''}</b>
+        {b?.note && <span>{b.note}</span>}
+        <span className="t-xs" style={{ opacity: .8 }}>{b ? `${b.by}, ${b.at}. ` : ''}Владелец и сотрудники не могут войти в Gluon.</span>
+      </div>
+    </div>
+  );
+}
+
+function BlockForm({ company, onClose, onSave }: { company: string; onClose: () => void; onSave: (reason: string, note: string) => void }) {
+  const [reason, setReason] = useState(BLOCK_REASONS[0]);
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState('');
+  return (
+    <div className="col gap-16" style={{ padding: 24 }}>
+      <p className="t-sm muted">{company}: владелец и сотрудники не смогут войти в Gluon. Причину увидят Gluon и подключённые сервисы.</p>
+      <Field label="Причина"><Select value={reason} onChange={(v) => { setReason(v); setErr(''); }} options={BLOCK_REASONS.map((r) => ({ value: r, label: r }))} /></Field>
+      <Field label="Описание" error={err}>
+        <textarea className="cb-note" rows={3} value={note} onChange={(e) => { setNote(e.target.value); setErr(''); }} placeholder="Подробности для Gluon и сервисов" />
+      </Field>
+      <div className="row gap-12">
+        <button className="btn btn-secondary grow" onClick={onClose}>Отмена</button>
+        <button className="btn btn-danger grow" onClick={() => {
+          if (reason === 'Другое' && note.trim().length < 5) { setErr('Опишите причину'); return; }
+          onSave(reason, note.trim());
+        }}>Заблокировать</button>
       </div>
     </div>
   );

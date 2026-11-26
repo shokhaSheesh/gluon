@@ -28,9 +28,13 @@ export interface Client {
   services: Record<string, ClientService>;
   credentials?: { login: string; password: string }; // issued by a bank (login = phone)
   blocked?: boolean;                                   // blocked by the bank — cannot sign in
+  block?: CompanyBlock;                                // why / who / when (seen by admin, the bank and services)
   accounts?: ClientAccount[];                          // settlement accounts opened by the client's bank
   lastActive?: string;                                 // last sign-in (dd.mm.yyyy); empty = never signed in
 }
+
+export interface CompanyBlock { reason: string; note: string; at: string; by: string; org: string }
+export const BLOCK_REASONS = ['Подозрительная активность', 'Задолженность перед банком', 'Закрытие расчётного счёта', 'По запросу клиента', 'Другое'];
 
 /** Расчётный счёт opened by the bank for its client (shown in the client's profile → «Банк аккаунт»). */
 export interface ClientAccount { id: string; number: string; currency: 'UZS' | 'USD'; name: string; opened: string; status: 'active' | 'closed'; closed?: string }
@@ -127,6 +131,7 @@ function genClients(): Client[] {
   fresh.forEach(([company, category, owner, registered, joined, phone, svcs], k) => list.push({
     id: `c-kb-${k + 1}`, company, inn: String(311_200_100 + k * 7_313), owner, phone, address: `Ташкент, ${STREETS[(k + 3) % STREETS.length]}`, category,
     channel: 'kapital', joined, registered, plan: 'base', credentials: { login: phone, password: `client${200 + k}` },
+    ...(k === 0 ? { blocked: true, block: { reason: 'Задолженность перед банком', note: 'Просрочка по кредитной линии более 60 дней. Разблокируем после погашения.', at: '20.11.2026 15:40', by: 'Нигора Ахмедова', org: 'kapital' } } : {}),
     accounts: k === 2 ? [] : [{ id: `acc-kb-${k}`, number: genAccountNumber('kapital', 'UZS', 3_000_017 + k * 4_111), currency: 'UZS' as const, name: 'Основной счёт', opened: registered, status: 'active' as const }],
     services: Object.fromEntries(svcs.map((sv) => [sv, { status: 'active' as const, since: registered, paidUntil: registered.replace('.11.', '.12.') }])),
   }));
@@ -232,7 +237,7 @@ interface MerchantState extends MerchantData {
 }
 
 const Ctx = createContext<MerchantState | null>(null);
-const KEY = 'gluon.merchant.v9';
+const KEY = 'gluon.merchant.v10';
 const today = () => new Date().toLocaleDateString('ru-RU');
 
 export function MerchantProvider({ children }: { children: ReactNode }) {

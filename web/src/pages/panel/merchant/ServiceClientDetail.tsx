@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, Phone, CalendarCheck, CalendarClock, Clock, D
 import { Badge, formatPhone } from '../../../components/ui';
 import { CHANNEL_LABEL, autoRenewOf, initials, paidUntilOf, servicePayments, useMerchant } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
+import { BlockBanner } from './BankClientDetail';
 import { downloadXlsx } from '../../../lib/excel';
 import { RenewalStatus } from './ServiceSubscriptions';
 import './merchant.css';
@@ -58,7 +59,8 @@ export default function ServiceClientDetail() {
           <div className="row gap-8 wrap">
             <h1 className="h4">{c.company}</h1>
             {sub.status === 'active' ? <Badge kind="success">Подписка оплачена</Badge> : <Badge kind="error">Подписка не оплачена</Badge>}
-            {risk && <Badge kind="warning"><AlertTriangle size={12} /> Риск оттока</Badge>}
+            {c.blocked && <Badge kind="error">Заблокирована</Badge>}
+            {risk && !c.blocked && <Badge kind="warning"><AlertTriangle size={12} /> Риск оттока</Badge>}
           </div>
           <p className="muted t-sm row gap-6 wrap">{c.owner} · <a className="mc-phone" href={`tel:+998${c.phone}`}><Phone size={13} /> {formatPhone(c.phone)}</a> · {c.category} · канал: {CHANNEL_LABEL[c.channel]}</p>
         </div>
@@ -72,7 +74,8 @@ export default function ServiceClientDetail() {
         <Stat icon={<Repeat size={18} />} label="Автопродление" value={autoRenew ? 'Включено' : 'Выключено'} sub="Оплата через Gluon" tone={autoRenew ? 'ok' : 'warn'} />
       </div>
 
-      {risk && (
+      {c.blocked && <BlockBanner client={c} who={c.block?.org ? CHANNEL_LABEL[c.block.org as keyof typeof CHANNEL_LABEL] : undefined} />}
+      {risk && !c.blocked && (
         <div className="bl-alert" style={{ marginTop: 0, background: 'var(--warning-soft)', borderColor: 'var(--warning-border)', color: 'var(--warning)' }}>
           <AlertTriangle size={18} /><span className="grow">{risk}</span>
           <button className="btn btn-secondary btn-sm" onClick={() => nav('/merchant/chat')}>Написать</button>

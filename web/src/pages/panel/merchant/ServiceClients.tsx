@@ -59,7 +59,7 @@ export default function ServiceClients() {
                 const s = c.services[svcId];
                 return (
                   <tr key={c.id} className="clickable" onClick={() => nav(c.id)}>
-                    <td><span className="col"><span className="strong" style={{ color: 'var(--text)' }}>{c.company}</span><span className="t-xs muted">{c.owner}</span></span></td>
+                    <td><span className="col"><span className="row gap-6"><span className="strong" style={{ color: 'var(--text)' }}>{c.company}</span>{c.blocked && <span title={c.block ? `${c.block.reason}${c.block.note ? `: ${c.block.note}` : ''}` : undefined}><Badge kind="error">Заблокирована</Badge></span>}</span><span className="t-xs muted">{c.owner}</span></span></td>
                     <td style={{ whiteSpace: 'nowrap' }}>{formatPhone(c.phone)}</td>
                     <td>{c.category}</td>
                     <td>{c.channel === 'gluon' ? <Badge kind="primary">Gluon</Badge> : <Badge kind="neutral">{CHANNEL_LABEL[c.channel]}</Badge>}</td>
