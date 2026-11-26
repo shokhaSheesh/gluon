@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { Download, Search } from 'lucide-react';
-import { Badge, Pagination } from '../../../components/ui';
+import { Badge, Pagination, usePaging } from '../../../components/ui';
 import { useMerchant } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
 import { downloadXlsx } from '../../../lib/excel';
@@ -10,7 +10,6 @@ import { PeriodFilter, inRange, rangeOf, type Period } from './period';
 import { renewalsOf, type Renewal, type RenewalKind } from './serviceStats';
 import './merchant.css';
 
-const PER = 15;
 const TABS: { key: 'all' | RenewalKind; label: string }[] = [
   { key: 'all', label: 'Все' }, { key: 'ontime', label: 'Вовремя' }, { key: 'late', label: 'С опозданием' },
 ];
@@ -30,15 +29,14 @@ export default function ServiceSubscriptions() {
   const [period, setPeriod] = useState<Period>({ key: 'month' });
   const [tab, setTab] = useState<'all' | RenewalKind>('all');
   const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
 
   // a subscription exists only once it is paid — failed renewals are not listed
   const all = useMemo(() => renewalsOf(clients, svcId).filter((x) => x.kind !== 'failed'), [clients, svcId]);
   const r = rangeOf(period);
   const inPeriod = all.filter((x) => inRange(x.at, r) && (x.client.company + x.client.owner).toLowerCase().includes(q.toLowerCase()));
   const rows = inPeriod.filter((x) => tab === 'all' || x.kind === tab);
-  const total = Math.max(1, Math.ceil(rows.length / PER));
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
   const count = (k: 'all' | RenewalKind) => (k === 'all' ? inPeriod.length : inPeriod.filter((x) => x.kind === k).length);
   const reset = () => setPage(1);
 
@@ -88,7 +86,7 @@ export default function ServiceSubscriptions() {
             </tbody>
           </table>
         </div>
-        {total > 1 && <Pagination page={page} total={total} onPage={setPage} />}
+        <Pagination {...pg.bar(rows.length)} />
       </div>
     </div>
   );

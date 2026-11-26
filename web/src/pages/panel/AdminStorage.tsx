@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Database, Download, HardDrive, Search } from 'lucide-react';
-import { Pagination, Select } from '../../components/ui';
+import { Pagination, usePaging, Select } from '../../components/ui';
 import { CHANNEL_LABEL } from '../../lib/merchant';
 import { gbLabel } from '../../lib/billing';
 import { useApp } from '../../lib/store';
@@ -12,7 +12,6 @@ import { pct } from './merchant/serviceStats';
 import './merchant/merchant.css';
 
 const CAPACITY_GB = 50 * 1024; // Gluon Archive cluster
-const PER = 15;
 
 /** Gluon admin: how full the Gluon Archive is and which companies take the space. */
 export default function AdminStorage() {
@@ -21,7 +20,7 @@ export default function AdminStorage() {
   const ledgers = useLedgers();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
 
   const used = ledgers.reduce((a, { l }) => a + l.storage.usedGb, 0);
   const quota = ledgers.reduce((a, { l }) => a + l.storage.totalGb, 0);
@@ -31,7 +30,7 @@ export default function AdminStorage() {
   const rows = [...ledgers]
     .filter(({ c, l }) => c.company.toLowerCase().includes(q.toLowerCase()) && (filter === 'all' || (filter === 'near' ? l.storage.usedGb / l.storage.totalGb >= 0.8 : true)))
     .sort((a, b) => b.l.storage.usedGb - a.l.storage.usedGb);
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
   const usedPct = pct(used, CAPACITY_GB);
 
   return (
@@ -82,7 +81,7 @@ export default function AdminStorage() {
                 const p = pct(l.storage.usedGb, l.storage.totalGb);
                 return (
                   <tr key={c.id} className="clickable" onClick={() => nav(`/admin/companies/${c.id}`)}>
-                    <td className="muted">{(page - 1) * PER + i + 1}</td>
+                    <td className="muted">{pg.offset(rows.length) + i + 1}</td>
                     <td><span className="col"><span className="strong" style={{ color: 'var(--text)' }}>{c.company}</span><span className="t-xs muted">{CHANNEL_LABEL[c.channel] ?? c.channel}</span></span></td>
                     <td className="strong" style={{ whiteSpace: 'nowrap' }}>{gbLabel(l.storage.usedGb)}<span className="t-xs muted"> · {pct(l.storage.usedGb, used)}% от всех</span></td>
                     <td>
@@ -103,7 +102,7 @@ export default function AdminStorage() {
             </tbody>
           </table>
         </div>
-        {rows.length > PER && <Pagination page={page} total={Math.ceil(rows.length / PER)} onPage={setPage} />}
+        <Pagination {...pg.bar(rows.length)} />
       </div>
     </div>
   );

@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { Blocks, Building2, Download, Handshake, Image, Landmark, Link2, MessagesSquare, Search, UserCog, Users } from 'lucide-react';
-import { Pagination, Select } from '../../../components/ui';
+import { Pagination, usePaging, Select } from '../../../components/ui';
 import { AUDIT_SECTION, orgOf, parseDate, useMerchant, type AuditSection } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
 import { downloadXlsx } from '../../../lib/excel';
 import { PeriodFilter, inRange, rangeOf, type Period } from './period';
 import './merchant.css';
 
-const PER = 15;
 const ICON: Record<AuditSection, React.ReactNode> = {
   team: <UserCog size={14} />, chat: <MessagesSquare size={14} />, requests: <Link2 size={14} />, clients: <Users size={14} />, accounts: <Landmark size={14} />, companies: <Building2 size={14} />, partners: <Handshake size={14} />, banners: <Image size={14} />, services: <Blocks size={14} />,
 };
@@ -24,14 +23,13 @@ export default function AuditLog() {
   const [section, setSection] = useState<'all' | AuditSection>('all');
   const [actor, setActor] = useState('all');
   const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
 
   const r = rangeOf(period);
   const base = all.filter((e) => inRange(parseDate(e.at.slice(0, 10)), r) && (actor === 'all' || e.actor === actor)
     && `${e.action} ${e.target} ${e.details ?? ''}`.toLowerCase().includes(q.toLowerCase()));
   const rows = base.filter((e) => section === 'all' || e.section === section);
-  const total = Math.max(1, Math.ceil(rows.length / PER));
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
   const actors = [...new Set(all.map((e) => e.actor))];
   const reset = () => setPage(1);
 
@@ -78,7 +76,7 @@ export default function AuditLog() {
             </tbody>
           </table>
         </div>
-        {total > 1 && <Pagination page={page} total={total} onPage={setPage} />}
+        <Pagination {...pg.bar(rows.length)} />
       </div>
     </div>
   );

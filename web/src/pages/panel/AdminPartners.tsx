@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { Ban, KeyRound, Plus, ShieldCheck } from 'lucide-react';
-import { Badge, BankLogo, BrandMark, ConfirmModal, Modal } from '../../components/ui';
+import { Badge, BankLogo, BrandMark, ConfirmModal, Modal, Pagination, usePaging } from '../../components/ui';
 import { SERVICES } from '../../data/mock';
 import { SERVICE_IDS, registerPartner, useMerchant, type Partner } from '../../lib/merchant';
 import { brandFor, useBranding } from '../../lib/branding';
@@ -33,6 +33,7 @@ export default function AdminPartners() {
   const list = m.partners.filter((p) => (tab === 'bank' ? p.aggregator : !p.aggregator));
   const ids = [...m.partners.map((p) => p.id), ...SERVICE_IDS];
   const logins = m.partners.map((p) => p.login);
+  const pg = usePaging();
 
   return (
     <div className="col gap-16">
@@ -50,7 +51,7 @@ export default function AdminPartners() {
           <table className="table">
             <thead><tr><th>{tab === 'bank' ? 'Банк' : 'Сервис'}</th><th>Логин</th>{tab === 'bank' && <th>Домен</th>}<th>Клиенты</th><th>Создан</th><th>Статус</th><th /></tr></thead>
             <tbody>
-              {list.map((p) => (
+              {pg.slice(list).map((p) => (
                 <tr key={p.id}>
                   <td>{logoOf(p)}</td>
                   <td className="mono-ish">{p.login}</td>
@@ -77,6 +78,7 @@ export default function AdminPartners() {
             </tbody>
           </table>
         </div>
+        <Pagination {...pg.bar(list.length)} />
       </div>
 
       <Modal open={!!create} onClose={() => setCreate(null)} title="Новый партнёр" width={560}>

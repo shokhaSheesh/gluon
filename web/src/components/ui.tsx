@@ -313,19 +313,56 @@ export function LangSelect({ compact = false }: { compact?: boolean }) {
 }
 
 /* ---------- Pagination ---------- */
-export function Pagination({ page, total, onPage }: { page: number; total: number; onPage: (p: number) => void }) {
-  const items: (number | '…')[] = total <= 7 ? Array.from({ length: total }, (_, i) => i + 1) : [1, 2, 3, '…', total - 2, total - 1, total];
+export const PAGE_SIZES = [10, 20, 50, 100];
+
+/** Page state for a list: slice(rows) gives the current page, bar(count) — props for <Pagination>. */
+export function usePaging(init = 10) {
+  const [page, setPage] = useState(1);
+  const [per, setPer] = useState(init);
+  const clamp = (n: number) => Math.min(page, Math.max(1, Math.ceil(n / per)));
+  return {
+    page, setPage, per,
+    /** first row number of the current page (for «#» columns) */
+    offset: (n: number) => (clamp(n) - 1) * per,
+    slice: <T,>(rows: T[]) => { const p = clamp(rows.length); return rows.slice((p - 1) * per, p * per); },
+    /** current page with each row's index in the full list (drag-and-drop, numbering) */
+    sliceIdx: <T,>(rows: T[]) => { const p = clamp(rows.length); return rows.map((r, i) => [r, i] as [T, number]).slice((p - 1) * per, p * per); },
+    bar: (n: number) => ({ page: clamp(n), onPage: setPage, rows: n, per, onPer: (v: number) => { setPer(v); setPage(1); } }),
+  };
+}
+
+function pageItems(page: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (page <= 4) return [1, 2, 3, 4, 5, '…', total];
+  if (page >= total - 3) return [1, '…', total - 4, total - 3, total - 2, total - 1, total];
+  return [1, '…', page - 1, page, page + 1, '…', total];
+}
+
+/** Table footer: rows per page + «1–10 из 60» on the left, pages on the right. */
+export function Pagination({ page, onPage, rows, per, onPer }: { page: number; onPage: (p: number) => void; rows: number; per: number; onPer: (n: number) => void }) {
+  if (!rows) return null;
+  const total = Math.max(1, Math.ceil(rows / per));
+  const from = (page - 1) * per + 1, to = Math.min(rows, page * per);
   return (
     <div className="pagination">
-      <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => onPage(page - 1)}>← Предыдущий</button>
-      <div className="pages">
-        {items.map((p, i) =>
-          p === '…' ? <button key={i} disabled>…</button> : (
-            <button key={i} className={clsx(p === page && 'active')} onClick={() => onPage(p)}>{p}</button>
-          ),
-        )}
+      <div className="pg-info">
+        <span className="t-sm muted">Строк на странице</span>
+        <div className="pg-size"><Select value={String(per)} onChange={(v) => onPer(Number(v))} options={PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))} /></div>
+        <span className="t-sm muted pg-range"><b>{from}–{to}</b> из <b>{rows.toLocaleString('ru-RU')}</b></span>
       </div>
-      <button className="btn btn-secondary btn-sm" disabled={page === total} onClick={() => onPage(page + 1)}>Следующий →</button>
+      {total > 1 && (
+        <div className="pg-nav">
+          <button className="btn btn-secondary btn-sm" disabled={page === 1} onClick={() => onPage(page - 1)} aria-label="Предыдущая">←</button>
+          <div className="pages">
+            {pageItems(page, total).map((p, i) =>
+              p === '…' ? <button key={i} disabled>…</button> : (
+                <button key={i} className={clsx(p === page && 'active')} onClick={() => onPage(p)}>{p}</button>
+              ),
+            )}
+          </div>
+          <button className="btn btn-secondary btn-sm" disabled={page === total} onClick={() => onPage(page + 1)} aria-label="Следующая">→</button>
+        </div>
+      )}
     </div>
   );
 }

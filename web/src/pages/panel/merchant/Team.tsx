@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { Eye, EyeOff, Lock, Pencil, Plus, ShieldCheck, Trash2, UserPlus, Wand2 } from 'lucide-react';
-import { Badge, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone } from '../../../components/ui';
+import { Badge, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone, Pagination, usePaging } from '../../../components/ui';
 import { PAGES, orgOf, useMerchant, type Employee, type Perm, type Role, type Team as TeamT } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
 import './merchant.css';
@@ -28,6 +28,7 @@ export default function Team() {
   const [emp, setEmp] = useState<Employee | null>(null);
   const [delEmp, setDelEmp] = useState<Employee | null>(null);
   const [role, setRole] = useState<Role | null>(null);
+  const pg = usePaging();
   const [delRole, setDelRole] = useState<Role | null>(null);
   const roleName = (id: string) => team.roles.find((r) => r.id === id)?.name ?? '—';
 
@@ -50,7 +51,7 @@ export default function Team() {
             <table className="table">
               <thead><tr><th>Сотрудник</th><th>Логин</th><th>Телефон</th><th>Роль</th><th>Статус</th><th>Последняя активность</th><th /></tr></thead>
               <tbody>
-                {team.employees.map((e) => (
+                {pg.slice(team.employees).map((e) => (
                   <tr key={e.id}>
                     <td><span className="row gap-10"><span className="avatar sm">{e.name.split(' ').map((x) => x[0]).join('').slice(0, 2)}</span><span className="strong" style={{ color: 'var(--text)' }}>{e.name}</span></span></td>
                     <td className="mono-ish">{e.login}</td>
@@ -71,6 +72,7 @@ export default function Team() {
               </tbody>
             </table>
           </div>
+          <Pagination {...pg.bar(team.employees.length)} />
         </div>
       ) : (
         <div className="tm-roles">

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { Check, Phone, X } from 'lucide-react';
-import { Badge, Field, Modal, Pagination, formatPhone } from '../../../components/ui';
+import { Badge, Field, Modal, Pagination, usePaging, formatPhone } from '../../../components/ui';
 import { fmtHours } from './serviceStats';
 import { CHANNEL_LABEL, CONN_LABEL, DEMO_CLIENT_ID, initials, useMerchant, type ConnRequest, type ConnStatus } from '../../../lib/merchant';
 import { useBilling } from '../../../lib/billing';
@@ -22,13 +22,11 @@ export default function ConnRequests() {
   const [tab, setTab] = useState<ConnStatus>('pending');
   const [reject, setReject] = useState<ConnRequest | null>(null);
   const [reason, setReason] = useState(REASONS[0]);
-  const [page, setPage] = useState(1);
-  const PER = 10;
+  const pg = usePaging(); const { setPage } = pg;
 
   const mine = m.connRequests.filter((r) => r.service === svcId);
   const all = mine.filter((r) => r.status === tab).sort((a, b) => b.date.split('.').reverse().join('').localeCompare(a.date.split('.').reverse().join('')));
-  const pages = Math.max(1, Math.ceil(all.length / PER));
-  const list = all.slice((page - 1) * PER, page * PER);
+  const list = pg.slice(all);
   const count = (s: ConnStatus) => mine.filter((r) => r.status === s).length;
 
   const approve = (r: ConnRequest) => {
@@ -70,7 +68,7 @@ export default function ConnRequests() {
             </div>
           );
         })}
-        {pages > 1 && <Pagination page={page} total={pages} onPage={setPage} />}
+        <Pagination {...pg.bar(all.length)} />
         {!list.length && <div className="card empty-state">{tab === 'pending' ? 'Новых заявок нет' : 'Здесь пока пусто'}</div>}
       </div>
 

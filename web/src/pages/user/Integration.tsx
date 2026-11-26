@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Boxes, ChevronLeft, CircleHelp, Filter, LayoutDashboard, Package, Pencil, Plus, Search, Settings, ShoppingCart, Trash2, Truck, Users, MessageSquare, Megaphone, CreditCard, MapPin, Bot, Store, BarChart3, Warehouse, ArrowLeftRight, FileText, ChevronDown } from 'lucide-react';
-import { BrandMark, Badge } from '../../components/ui';
+import { BrandMark, Badge, Pagination, usePaging } from '../../components/ui';
 import { SERVICES } from '../../data/mock';
 import { FOOD } from '../../assets';
 import './integration.css';
@@ -153,6 +153,7 @@ export default function Integration() {
   const [chip, setChip] = useState(0);
   const [active, setActive] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const pg = usePaging();
   if (!svc || !cfg) return <Navigate to="/app" replace />;
   const cur = active ?? cfg.active;
 
@@ -221,7 +222,7 @@ export default function Integration() {
           <table className="table">
             <thead><tr><th style={{ width: 36 }}><input type="checkbox" /></th>{cfg.columns.map((c) => <th key={c}>{c}</th>)}{cfg.actions && <th style={{ textAlign: 'right' }}>Action</th>}</tr></thead>
             <tbody>
-              {cfg.rows.map((r, i) => (
+              {pg.slice(cfg.rows).map((r, i) => (
                 <tr key={i}>
                   <td><input type="checkbox" /></td>
                   {r.map((c, j) => <td key={j} className={j === 0 ? 'strong' : undefined}>{renderCell(c, j === 0 && cfg.columns[0] === 'Фото')}</td>)}
@@ -238,10 +239,7 @@ export default function Integration() {
             </tbody>
           </table>
         </div>
-        <div className="row between t-sm muted">
-          <span>Показано 1–{cfg.rows.length} из 50 записей</span>
-          <div className="pages">{[1, 2, 3, 4, 5].map((p) => <button key={p} className={p === 1 ? 'active' : ''}>{p}</button>)}</div>
-        </div>
+        <div className="card"><Pagination {...pg.bar(cfg.rows.length)} /></div>
       </section>
     </div>
   );

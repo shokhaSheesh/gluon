@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { GripVertical, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { moveItem, useDragList } from '../../components/useDragList';
-import { ConfirmModal, Field, Input, Modal } from '../../components/ui';
+import { ConfirmModal, Field, Input, Modal, Pagination, usePaging } from '../../components/ui';
 import { gbLabel, sum, useBilling, type Plan } from '../../lib/billing';
 import { useApp } from '../../lib/store';
 import '../user/billing.css';
@@ -10,6 +10,7 @@ import './merchant/merchant.css';
 /** Gluon admin: Gluon plans (archive size, features, price). Service prices live on the services. */
 export default function Pricing() {
   const b = useBilling();
+  const pg = usePaging();
   const { toast } = useApp();
   const tab: string = 'plans';
   const [edit, setEdit] = useState<Plan | null>(null);
@@ -33,7 +34,7 @@ export default function Pricing() {
             <table className="table">
               <thead><tr><th>Тариф</th><th>Хранилище</th><th>Цена / мес</th><th>Возможности</th><th>Пользователей</th><th>Показывать</th><th /></tr></thead>
               <tbody>
-                {b.plans.map((p, i) => (
+                {pg.sliceIdx(b.plans).map(([p, i]) => (
                   <tr key={p.id}>
                     <td className="strong"><span className="row gap-8">{p.name}{p.popular && <span className="badge badge-primary"><Sparkles size={11} /> Популярный</span>}</span></td>
                     <td>{gbLabel(p.gb)}</td>
@@ -52,6 +53,7 @@ export default function Pricing() {
               </tbody>
             </table>
           </div>
+          <Pagination {...pg.bar(b.plans.length)} />
         </div>
       ) : null}
 

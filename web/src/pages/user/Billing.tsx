@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { CalendarClock, Check, CreditCard, Database, Plus, Sparkles, Wallet, AlertTriangle } from 'lucide-react';
-import { Badge, BrandMark, Modal } from '../../components/ui';
+import { Badge, BrandMark, Modal, Pagination, usePaging } from '../../components/ui';
 import { SERVICES } from '../../data/mock';
 import { gbLabel, sum, useBilling, type SubStatus } from '../../lib/billing';
 import { useApp } from '../../lib/store';
@@ -18,6 +18,8 @@ const STATUS: Record<SubStatus, { label: string; kind: 'success' | 'error' | 'in
 
 export default function Billing() {
   const b = useBilling();
+  const ps = usePaging();
+  const pp = usePaging();
   const nav = useNavigate();
   const { openTopUp } = useShell();
   const [yearly, setYearly] = useState(false);
@@ -118,7 +120,7 @@ export default function Billing() {
           <table className="table">
             <thead><tr><th>Сервис</th><th>Стоимость</th><th>Статус</th><th>Оплачено до</th><th>Автопродление</th><th /></tr></thead>
             <tbody>
-              {subs.map((s) => {
+              {ps.slice(subs).map((s) => {
                 const sub = b.subs[s.id];
                 const price = b.prices[s.id];
                 return (
@@ -147,6 +149,7 @@ export default function Billing() {
             </tbody>
           </table>
         </div>
+        <Pagination {...ps.bar(subs.length)} />
       </section>
 
       <section className="section" style={{ padding: 0, overflow: 'hidden' }}>
@@ -155,7 +158,7 @@ export default function Billing() {
           <table className="table">
             <thead><tr><th>Дата</th><th>Описание</th><th>Тип</th><th style={{ textAlign: 'right' }}>Сумма</th></tr></thead>
             <tbody>
-              {b.payments.slice(0, 10).map((p) => (
+              {pp.slice(b.payments).map((p) => (
                 <tr key={p.id}>
                   <td>{p.date}</td>
                   <td className="strong">{p.title}</td>
@@ -166,6 +169,7 @@ export default function Billing() {
             </tbody>
           </table>
         </div>
+        <Pagination {...pp.bar(b.payments.length)} />
       </section>
 
       <CheckoutModal checkout={checkout} yearly={yearly} onClose={() => setCheckout(null)} />

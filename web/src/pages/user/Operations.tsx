@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, CalendarDays, ChevronDown, FileSpreadsheet, FileText, Search, Upload, Wallet, X, CircleCheck, Pencil, Plus, Info } from 'lucide-react';
-import { BrandMark, Field, Input, Modal, Select, useClickOutside } from '../../components/ui';
+import { BrandMark, Field, Input, Modal, Select, useClickOutside, Pagination, usePaging } from '../../components/ui';
 import { ACCOUNTS, CATEGORIES, OPERATIONS, accountLabel, maskAccount, type Operation, type OpType } from '../../data/operations';
 import { BANKS, fmt } from '../../data/mock';
 import { useApp } from '../../lib/store';
@@ -26,6 +26,7 @@ export default function Operations() {
   const [importFmt, setImportFmt] = useState<Format | null>(null);
   const [open, setOpen] = useState<Operation | null>(null);
   const menuRef = useClickOutside<HTMLDivElement>(() => setMenu(false));
+  const pg = usePaging();
 
   const byAccount = ops.filter((o) => account === 'all' || o.account === account);
   const sum = (t: OpType) => byAccount.filter((o) => o.type === t).reduce((a, o) => a + o.amount, 0);
@@ -87,7 +88,7 @@ export default function Operations() {
           </div>
         </div>
         <div className="op-cards">
-          {list.map((o) => {
+          {pg.slice(list).map((o) => {
             const t = TYPE[o.type];
             return (
               <button key={o.id} className="op-card" onClick={() => setOpen(o)}>
@@ -108,7 +109,7 @@ export default function Operations() {
           <table className="table">
             <thead><tr><th>Дата</th><th>Контрагент и назначение платежа</th><th>Счёт</th><th>Категория</th><th>Тип</th><th style={{ textAlign: 'right' }}>Сумма</th></tr></thead>
             <tbody>
-              {list.map((o) => {
+              {pg.slice(list).map((o) => {
                 const t = TYPE[o.type];
                 const bank = bankOf(o.account);
                 return (
@@ -138,6 +139,7 @@ export default function Operations() {
             </tbody>
           </table>
         </div>
+        <Pagination {...pg.bar(list.length)} />
       </section>
 
       <ImportModal format={importFmt} onClose={() => setImportFmt(null)} />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { GripVertical, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { ConfirmModal, Field, Input, Modal } from '../../components/ui';
+import { ConfirmModal, Field, Input, Modal, Pagination, usePaging } from '../../components/ui';
 import { moveItem, useDragList } from '../../components/useDragList';
 import { slug, useMerchant, type ProductDef } from '../../lib/merchant';
 import { useApp } from '../../lib/store';
@@ -15,6 +15,7 @@ export default function AdminProducts() {
   const m = useMerchant();
   const [edit, setEdit] = useState<ProductDef | 'new' | null>(null);
   const [del, setDel] = useState<ProductDef | null>(null);
+  const pg = usePaging();
   const log = (action: string, target: string, details?: string) => m.log('gluon', 'admin', { section: 'partners', action, target, details });
   const usedBy = (id: string) => m.banks.filter((b) => b.products.some((p) => p.productId === id));
   const { rowProps } = useDragList((from, to) => {
@@ -33,7 +34,7 @@ export default function AdminProducts() {
           <table className="table dnd-table">
             <thead><tr><th style={{ width: 64 }} /><th>Продукт</th><th>Параметры</th><th>Банков</th><th /></tr></thead>
             <tbody>
-              {m.bankProducts.map((d, i) => (
+              {pg.sliceIdx(m.bankProducts).map(([d, i]) => (
                 <tr key={d.id} {...rowProps(i)}>
                   <td><span className="row gap-6"><GripVertical size={16} className="bn-grip" /><span className="bn-num">{i + 1}</span></span></td>
                   <td className="strong" style={{ color: 'var(--text)' }}>{d.name}</td>
@@ -51,6 +52,7 @@ export default function AdminProducts() {
             </tbody>
           </table>
         </div>
+        <Pagination {...pg.bar(m.bankProducts.length)} />
       </div>
 
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit === 'new' ? 'Новый продукт' : edit ? edit.name : ''} width={520}>

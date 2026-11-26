@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { ShieldCheck } from 'lucide-react';
-import { Field, Input, Modal, PhoneInput, Select } from '../../components/ui';
+import { Field, Input, Modal, PhoneInput, Select, Pagination, usePaging } from '../../components/ui';
 import { BankCardLogo, BankCardView } from '../../components/BankCardView';
 import { useApp } from '../../lib/store';
-import { DEMO_CLIENT_ID, useMerchant, type BankCard } from '../../lib/merchant';
+import { DEMO_CLIENT_ID, useMerchant, type BankCard, type ProductDef } from '../../lib/merchant';
 import './banking.css';
 
 type Lead = { bank: BankCard; product: string };
@@ -43,31 +43,8 @@ export default function Banking() {
       </section>
 
       {tables.map((def) => {
-        const name = def.name;
         const rows = banks.map((b) => ({ b, p: b.products.find((x) => x.productId === def.id) })).filter((x): x is { b: BankCard; p: BankCard['products'][number] } => !!x.p);
-        const cols = def.params;
-        return (
-          <section key={def.id} className="section" style={{ padding: 0, overflow: 'hidden' }}>
-            <h3 className="medium" style={{ padding: '14px 20px', fontSize: 16 }}>{name}</h3>
-            <div className="table-wrap">
-              <table className="table">
-                <thead><tr><th>Банк</th>{cols.map((c) => <th key={c.id}>{c.label}</th>)}<th /></tr></thead>
-                <tbody>
-                  {rows.map(({ b, p }) => (
-                    <tr key={b.id}>
-                      <td><BankCardLogo b={b} height={16} /></td>
-                      {cols.map((c) => {
-                        const v = p.values[c.id] || '—';
-                        return <td key={c.id}>{v === 'Нет' ? <span className="error-text">Нет</span> : v}</td>;
-                      })}
-                      <td style={{ textAlign: 'right' }}><button className="btn btn-soft btn-sm" onClick={() => setLead({ bank: b, product: name })}>Подать заявку</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        );
+        return rows.length ? <ProductTable key={def.id} name={def.name} cols={def.params} rows={rows} onLead={(b) => setLead({ bank: b, product: def.name })} /> : null;
       })}
 
       <LeadModal lead={lead} onClose={() => setLead(null)} />
@@ -124,5 +101,33 @@ function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () => void }
         </div>
       ))}
     </Modal>
+  );
+}
+
+/** Comparison table of one bank product («Кредит», «Рассрочка», …) with paging. */
+function ProductTable({ name, cols, rows, onLead }: { name: string; cols: ProductDef['params']; rows: { b: BankCard; p: BankCard['products'][number] }[]; onLead: (b: BankCard) => void }) {
+  const pg = usePaging();
+  return (
+    <section className="section" style={{ padding: 0, overflow: 'hidden' }}>
+      <h3 className="medium" style={{ padding: '14px 20px', fontSize: 16 }}>{name}</h3>
+      <div className="table-wrap">
+        <table className="table">
+          <thead><tr><th>Банк</th>{cols.map((c) => <th key={c.id}>{c.label}</th>)}<th /></tr></thead>
+          <tbody>
+            {pg.slice(rows).map(({ b, p }) => (
+              <tr key={b.id}>
+                <td><BankCardLogo b={b} height={16} /></td>
+                {cols.map((c) => {
+                  const v = p.values[c.id] || '—';
+                  return <td key={c.id}>{v === 'Нет' ? <span className="error-text">Нет</span> : v}</td>;
+                })}
+                <td style={{ textAlign: 'right' }}><button className="btn btn-soft btn-sm" onClick={() => onLead(b)}>Подать заявку</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Pagination {...pg.bar(rows.length)} />
+    </section>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { GripVertical, Pencil, Plus } from 'lucide-react';
-import { BrandMark, Modal } from '../../components/ui';
+import { BrandMark, Modal, Pagination, usePaging } from '../../components/ui';
 import { SERVICES } from '../../data/mock';
 import { LOGO_BY_NAME } from '../../assets';
 import { SERVICE_IDS, orderedServices, useMerchant, type CatalogService } from '../../lib/merchant';
@@ -38,6 +38,7 @@ export default function AdminServices() {
   const [edit, setEdit] = useState<CatalogService | 'new' | null>(null);
   const rec = m.recommended.gluon ?? [];
   const ids = orderedServices(m.serviceOrder);
+  const pg = usePaging();
   const { rowProps } = useDragList((from, to) => {
     m.setServiceOrder(moveItem(ids, from, to));
     log('Изменил порядок сервисов', SERVICES.find((x) => x.id === ids[from])?.name ?? ids[from], `→ ${to + 1} место`);
@@ -60,7 +61,7 @@ export default function AdminServices() {
           <table className="table dnd-table">
             <thead><tr><th style={{ width: 64 }} /><th>Сервис</th><th>Цена</th><th>Клиентов</th><th>В магазине</th><th>Рекомендуемый</th><th /></tr></thead>
             <tbody>
-              {ids.map((id, i) => {
+              {pg.sliceIdx(ids).map(([id, i]) => {
                 const s = SERVICES.find((x) => x.id === id)!;
                 const p = b.prices[id] ?? { price: 0, active: false };
                 const users = m.clients.filter((c) => c.services[id]).length;
@@ -84,6 +85,7 @@ export default function AdminServices() {
             </tbody>
           </table>
         </div>
+        <Pagination {...pg.bar(ids.length)} />
       </div>
 
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit === 'new' ? 'Новый сервис' : edit ? `Сервис ${edit.name}` : ''} width={560}>

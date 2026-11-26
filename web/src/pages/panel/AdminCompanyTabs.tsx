@@ -5,7 +5,7 @@ import { useApp } from '../../lib/store';
 import { CardBrand } from '../user/ProfileModal';
 import clsx from 'clsx';
 import { ArrowDownLeft, ArrowUpRight, CreditCard, FileJson, HardDrive, Pencil, Repeat, Users, Wallet } from 'lucide-react';
-import { Badge, Field, Input, Modal, Select, formatPhone } from '../../components/ui';
+import { Badge, Field, Input, Modal, Select, formatPhone, Pagination, usePaging } from '../../components/ui';
 import { maskAccount } from '../../data/operations';
 import { sum } from '../../lib/billing';
 import { PAY_LABEL, fmtSum, useLedgers, type ProviderPayment } from '../../lib/ledger';
@@ -23,6 +23,12 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
   const [tab, setTab] = useState<Tab>('overview');
   const [resp, setResp] = useState<ProviderPayment | null>(null);
   const [editBal, setEditBal] = useState(false);
+  const pe = usePaging();
+  const pb = usePaging();
+  const pa = usePaging();
+  const pp = usePaging();
+  const ps = usePaging();
+  const po = usePaging();
   if (!l) return <>{overview}</>;
   const cur = l.subs.find((s) => s.status === 'active');
   const pctUsed = Math.round((l.storage.usedGb / l.storage.totalGb) * 100);
@@ -75,7 +81,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
                 <table className="table">
                   <thead><tr><th>Тариф</th><th>Период</th><th>Цена</th><th>Оплачено</th><th>Статус</th></tr></thead>
                   <tbody>
-                    {l.subs.map((x) => (
+                    {ps.slice(l.subs).map((x) => (
                       <tr key={x.id}>
                         <td><PlanMark name={x.plan} /></td>
                         <td>с {x.since}{x.status === 'replaced' ? ` по ${x.until}` : ''}</td>
@@ -87,6 +93,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
                   </tbody>
                 </table>
               </div>
+              <Pagination {...ps.bar(l.subs.length)} />
             </div>
           )}
 
@@ -96,7 +103,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
               <table className="table">
                 <thead><tr><th>Дата оплаты</th><th>Тариф</th><th>Период</th><th style={{ textAlign: 'right' }}>Сумма</th></tr></thead>
                 <tbody>
-                  {l.planPayments.map((p) => (
+                  {pp.slice(l.planPayments).map((p) => (
                     <tr key={p.id}>
                       <td>{p.date}</td>
                       <td><PlanMark name={p.plan} /></td>
@@ -108,11 +115,12 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
                 </tbody>
               </table>
             </div>
+            <Pagination {...pp.bar(l.planPayments.length)} />
           </div>
         </>
       )}
 
-      {tab === 'ops' && <OpsTable rows={l.ops.map((o) => ({ c, o }))} hideCompany />}
+      {tab === 'ops' && <OpsTable rows={po.slice(l.ops).map((o) => ({ c, o }))} hideCompany footer={<Pagination {...po.bar(l.ops.length)} />} />}
 
       {tab === 'payments' && (
         <section className="card db-card">
@@ -135,7 +143,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
             <table className="table">
               <thead><tr><th>Транзакция</th><th>Дата</th><th>Способ</th><th>Сумма</th><th>Комиссия</th><th>Статус</th><th /></tr></thead>
               <tbody>
-                {l.payments.map((p) => (
+                {pa.slice(l.payments).map((p) => (
                   <tr key={p.id + p.status}>
                     <td className="mono-ish strong" style={{ color: 'var(--text)' }}>{p.id}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{p.date} <span className="muted t-xs">{p.time}</span></td>
@@ -150,6 +158,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
               </tbody>
             </table>
           </div>
+          <Pagination {...pa.bar(l.payments.length)} />
         </div>
       )}
 
@@ -164,7 +173,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
             <table className="table">
               <thead><tr><th>Дата</th><th>Контрагент</th><th>Назначение платежа</th><th>Счёт</th><th style={{ textAlign: 'right' }}>Сумма</th></tr></thead>
               <tbody>
-                {l.bankOps.map((b) => (
+                {pb.slice(l.bankOps).map((b) => (
                   <tr key={b.id}>
                     <td style={{ whiteSpace: 'nowrap' }}>{b.date}</td>
                     <td className="strong" style={{ color: 'var(--text)' }}>{b.counterparty}</td>
@@ -179,6 +188,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
               </tbody>
             </table>
           </div>
+          <Pagination {...pb.bar(l.bankOps.length)} />
         </div>
       )}
 
@@ -207,7 +217,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
             <table className="table">
               <thead><tr><th>Сотрудник</th><th>Роль</th><th>Телефон</th><th>Последний вход</th></tr></thead>
               <tbody>
-                {l.employees.map((e) => (
+                {pe.slice(l.employees).map((e) => (
                   <tr key={e.name + e.phone}>
                     <td><span className="row gap-10"><span className="avatar sm">{e.name.split(' ').map((x) => x[0]).join('').slice(0, 2)}</span><span className="strong" style={{ color: 'var(--text)' }}>{e.name}</span></span></td>
                     <td>{e.role === 'Владелец' ? <Badge kind="primary">Владелец</Badge> : <Badge kind="neutral">{e.role}</Badge>}</td>
@@ -218,6 +228,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
               </tbody>
             </table>
           </div>
+          <Pagination {...pe.bar(l.employees.length)} />
         </div>
       )}
     </>

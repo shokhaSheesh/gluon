@@ -378,3 +378,17 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .op-tabcount { margin-left: 4px; font-size: 12px; color: var(--text-4); }
+.pagination { flex-wrap: wrap; border-top: 1px solid var(--border); }
+.pg-info { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pg-size { width: 84px; }
+.pg-size .input-wrap { height: 36px; }
+.pg-size .menu { top: auto; bottom: calc(100% + 6px); min-width: 84px; }
+.pg-range b { color: var(--text); font-weight: 500; }
+.pg-nav { display: flex; align-items: center; gap: 6px; }
+.pg-nav > .btn { min-width: 36px; }
+@media (max-width: 640px) { .pagination { justify-content: center; } .pg-nav .pages button { min-width: 32px; } }
+/* the page-size menu must not be cut by the card's rounded-corner clipping */
+.card:has(> .pagination) { overflow: visible !important; }
+.card:has(> .pagination) > .table-wrap { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.card > .pagination:first-child { border-top: none; }
+.section:has(> .pagination) { overflow: visible !important; }

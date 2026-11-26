@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { AlertTriangle, ArrowLeft, Phone, CalendarCheck, CalendarClock, Clock, Download, MessageSquare, Repeat } from 'lucide-react';
-import { Badge, formatPhone } from '../../../components/ui';
+import { Badge, formatPhone, Pagination, usePaging } from '../../../components/ui';
 import { CHANNEL_LABEL, autoRenewOf, initials, paidUntilOf, servicePayments, useMerchant } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
 import { BlockBanner } from './BankClientDetail';
@@ -26,6 +26,7 @@ export default function ServiceClientDetail() {
   const { clients } = useMerchant();
   const svcId = session?.orgId ?? '';
   const c = clients.find((x) => x.id === id);
+  const pg = usePaging();
 
   if (!c || !c.services[svcId]) {
     return (
@@ -94,7 +95,7 @@ export default function ServiceClientDetail() {
           <table className="table">
             <thead><tr><th>Период</th><th>Срок</th><th>Дата оплаты</th><th>Статус</th></tr></thead>
             <tbody>
-              {periods.map((p) => (
+              {pg.slice(periods).map((p) => (
                 <tr key={p.id}>
                   <td className="strong">{p.paid ? <>с {p.from} по {p.to}</> : <>с {p.from}</>}</td>
                   <td>{p.months} мес.</td>
@@ -105,6 +106,7 @@ export default function ServiceClientDetail() {
             </tbody>
           </table>
         </div>
+        <Pagination {...pg.bar(periods.length)} />
       </section>
     </div>
   );

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { AlertCircle, ArrowDownLeft, Check, Copy, FileJson, ArrowUpRight, Blocks, CreditCard, Download, Layers, Percent, Receipt, Repeat, Search, Wallet } from 'lucide-react';
-import { Badge, Modal, Pagination, Select } from '../../components/ui';
+import { Badge, Modal, Pagination, usePaging, Select } from '../../components/ui';
 import { parseDate } from '../../lib/merchant';
 import { sum } from '../../lib/billing';
 import { useApp } from '../../lib/store';
@@ -12,7 +12,6 @@ import { PeriodFilter, inRange, rangeOf, type Period } from './merchant/period';
 import { Stat } from './AdminCompanies';
 import './merchant/merchant.css';
 
-const PER = 15;
 export const PlanMark = ({ name }: { name: string }) => <span className="row gap-8"><span className="af-plan"><Layers size={13} /></span><span>{name}</span></span>;
 const Company = ({ name, sub }: { name: string; sub?: string }) => (
   <span className="col"><span className="strong" style={{ color: 'var(--text)' }}>{name}</span>{sub && <span className="t-xs muted">{sub}</span>}</span>
@@ -31,7 +30,7 @@ export function AdminSubscriptions() {
   const [status, setStatus] = useState<'all' | 'active' | 'ended'>('all');
   const [period, setPeriod] = useState<Period>({ key: 'all' });
   const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
   const reset = () => setPage(1);
   const today = new Date(2026, 10, 25);
   const all = useMemo(() => ledgers.flatMap(({ c, l }) => l.planPayments.map((p) => ({ c, p, active: parseDate(p.to) > today })))
@@ -39,7 +38,7 @@ export function AdminSubscriptions() {
   const r = rangeOf(period);
   const inP = all.filter(({ c, p }) => (plan === 'all' || p.planId === plan) && inRange(parseDate(p.date), r) && c.company.toLowerCase().includes(q.toLowerCase()));
   const rows = inP.filter(({ active }) => status === 'all' || (status === 'active' ? active : !active));
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
   const plans = [...new Map(all.map(({ p }) => [p.planId, p.plan])).entries()];
   const current = all.filter((x) => x.active);
   const onFree = ledgers.filter(({ l }) => !l.subs.find((x) => x.status === 'active')?.price).length;
@@ -93,7 +92,7 @@ export function AdminSubscriptions() {
             </tbody>
           </table>
         </div>
-        {rows.length > PER && <Pagination page={page} total={Math.ceil(rows.length / PER)} onPage={setPage} />}
+        <Pagination {...pg.bar(rows.length)} />
       </div>
     </div>
   );
@@ -127,13 +126,13 @@ export function AdminPayments() {
   const [status, setStatus] = useState<'all' | PayStatus>('all');
   const [method, setMethod] = useState('all');
   const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
   const [resp, setResp] = useState<{ p: ProviderPayment; c: { company: string; inn: string } } | null>(null);
   const r = rangeOf(period);
   const all = useMemo(() => ledgers.flatMap(({ c, l }) => l.payments.map((p) => ({ c, p }))).sort((a, b) => parseDate(b.p.date).getTime() - parseDate(a.p.date).getTime() || b.p.time.localeCompare(a.p.time)), [ledgers]);
   const inP = all.filter(({ c, p }) => inRange(parseDate(p.date), r) && (method === 'all' || p.method === method) && (c.company + p.id).toLowerCase().includes(q.toLowerCase()));
   const rows = inP.filter(({ p }) => status === 'all' || p.status === status);
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
   const ok = inP.filter(({ p }) => p.status === 'success');
   const reset = () => setPage(1);
 
@@ -187,7 +186,7 @@ export function AdminPayments() {
             </tbody>
           </table>
         </div>
-        {rows.length > PER && <Pagination page={page} total={Math.ceil(rows.length / PER)} onPage={setPage} />}
+        <Pagination {...pg.bar(rows.length)} />
       </div>
       <ResponseModal data={resp} onClose={() => setResp(null)} />
     </div>
@@ -204,12 +203,12 @@ export function AdminOperations() {
   const [period, setPeriod] = useState<Period>({ key: 'month' });
   const [kind, setKind] = useState<'all' | OpKind>('all');
   const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
   const r = rangeOf(period);
   const all = useMemo(() => ledgers.flatMap(({ c, l }) => l.ops.map((o) => ({ c, o }))).sort((a, b) => parseDate(b.o.date).getTime() - parseDate(a.o.date).getTime() || b.o.time.localeCompare(a.o.time)), [ledgers]);
   const inP = all.filter(({ c, o }) => inRange(parseDate(o.date), r) && (c.company + o.title).toLowerCase().includes(q.toLowerCase()));
   const rows = inP.filter(({ o }) => kind === 'all' || o.kind === kind);
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
   const total = (k: OpKind) => inP.filter(({ o }) => o.kind === k).reduce((a, { o }) => a + Math.abs(o.amount), 0);
   const reset = () => setPage(1);
 
@@ -242,13 +241,12 @@ export function AdminOperations() {
           ))}
         </div>
       </div>
-      <OpsTable rows={view} onOpen={(id) => nav(`/admin/companies/${id}`)} />
-      {rows.length > PER && <div className="card"><Pagination page={page} total={Math.ceil(rows.length / PER)} onPage={setPage} /></div>}
+      <OpsTable rows={view} onOpen={(id) => nav(`/admin/companies/${id}`)} footer={<Pagination {...pg.bar(rows.length)} />} />
     </div>
   );
 }
 
-export function OpsTable({ rows, onOpen, hideCompany }: { rows: { c: { id: string; company: string; owner: string }; o: import('../../lib/ledger').LedgerOp }[]; onOpen?: (id: string) => void; hideCompany?: boolean }) {
+export function OpsTable({ rows, onOpen, hideCompany, footer }: { rows: { c: { id: string; company: string; owner: string }; o: import('../../lib/ledger').LedgerOp }[]; onOpen?: (id: string) => void; hideCompany?: boolean; footer?: React.ReactNode }) {
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
       <div className="table-wrap">
@@ -269,6 +267,7 @@ export function OpsTable({ rows, onOpen, hideCompany }: { rows: { c: { id: strin
           </tbody>
         </table>
       </div>
+      {footer}
     </div>
   );
 }

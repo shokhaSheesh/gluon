@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { CreditCard, Globe, KeyRound, Landmark, LogOut, Pencil, Plus, Trash2, User, Users, UserCog, Wallet, X, Check, Upload } from 'lucide-react';
-import { BrandMark, ConfirmModal, Field, Input, Modal, PasswordInput, PhoneInput, Select } from '../../components/ui';
+import { BrandMark, ConfirmModal, Field, Input, Modal, PasswordInput, PhoneInput, Select, Pagination, usePaging } from '../../components/ui';
 import { BANKS, BUSINESS_CATEGORIES, EMPLOYEES, PERMISSIONS, ROLES } from '../../data/mock';
 import { LANGS } from '../../lib/i18n';
 import { useApp } from '../../lib/store';
@@ -108,6 +108,7 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
 }
 
 function Balance({ balance, onTopUp }: { balance: number; onTopUp: () => void }) {
+  const ph = usePaging();
   const { payments } = useBilling();
   return (
     <>
@@ -124,7 +125,7 @@ function Balance({ balance, onTopUp }: { balance: number; onTopUp: () => void })
       </div>
       <p className="medium" style={{ margin: '20px 0 8px' }}>История операций</p>
       <div className="col">
-        {payments.slice(0, 6).map((h) => {
+        {ph.slice(payments).map((h) => {
           const plus = h.amount > 0;
           return (
             <div key={h.id} className="row between pm-row">
@@ -137,6 +138,7 @@ function Balance({ balance, onTopUp }: { balance: number; onTopUp: () => void })
           );
         })}
       </div>
+      <Pagination {...ph.bar(payments.length)} />
     </>
   );
 }
@@ -175,6 +177,8 @@ function PasswordForm({ onClose }: { onClose: () => void }) {
 }
 
 function BankAccounts() {
+  const pr = usePaging();
+  const pa = usePaging();
   const { toast, session } = useApp();
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ bank: '', number: '', name: '' });
@@ -231,7 +235,7 @@ function BankAccounts() {
       </div>
       <p className="t-sm muted mt-4">Операции по счетам появляются после загрузки выписки в разделе «Операции».</p>
       <div className="col gap-12 mt-16">
-        {list.map((a) => {
+        {pa.slice(list).map((a) => {
           const b = bank(a.bank);
           return (
             <div key={a.id} className="pm-acc">
@@ -247,10 +251,11 @@ function BankAccounts() {
           );
         })}
       </div>
+      <Pagination {...pa.bar(list.length)} />
 
       <p className="medium" style={{ margin: '24px 0 8px' }}>Заявки на открытие счёта</p>
       <div className="col gap-8">
-        {requests.map((r) => (
+        {pr.slice(requests).map((r) => (
           <div key={r.id} className="row between pm-row">
             <span className="row gap-12"><BrandMark name={bank(r.bank).name} color={bank(r.bank).color} text={bank(r.bank).mark} size={28} /><span><b className="t-sm medium">{bank(r.bank).name} · {r.product}</b><br /><span className="t-xs muted">Отправлена {r.date}</span></span></span>
             <span className={`badge badge-${ACC_LABEL[r.status].kind}`}>{ACC_LABEL[r.status].label}</span>
@@ -259,6 +264,7 @@ function BankAccounts() {
         {!requests.length && <p className="t-sm muted">Заявок пока нет</p>}
         {session?.kind !== 'bank' && <a className="btn-link t-sm" href="/app/banking" style={{ marginTop: 6 }}>Открыть счёт в другом банке →</a>}
       </div>
+      <Pagination {...pr.bar(requests.length)} />
 
       <ConfirmModal open={!!del} onClose={() => setDel(null)} confirmText="Удалить" text="Удалить счёт? Загруженные операции останутся в истории."
         onConfirm={() => { setAccounts((l) => l.filter((x) => x.id !== del)); setDel(null); toast('success', 'Счёт удалён'); }} />
@@ -267,6 +273,7 @@ function BankAccounts() {
 }
 
 function Cards() {
+  const pc = usePaging();
   const { toast } = useApp();
   const b = useBilling();
   const [del, setDel] = useState<string | null>(null);
@@ -308,7 +315,7 @@ function Cards() {
     <>
       <div className="row between"><h2 className="h4">Карты</h2><button className="btn btn-primary btn-sm" onClick={() => open('new')}><Plus size={16} /> Добавить карту</button></div>
       <div className="col mt-16">
-        {b.cards.map((c) => (
+        {pc.slice(b.cards).map((c) => (
           <div key={c.id} className="row between pm-row">
             <label className="row gap-12" style={{ cursor: 'pointer' }}>
               <input type="radio" checked={b.mainCard === c.id} onChange={() => b.setMainCard(c.id)} style={{ accentColor: 'var(--primary)' }} />
@@ -324,6 +331,7 @@ function Cards() {
         ))}
         {!b.cards.length && <p className="empty-state t-sm">Карт нет</p>}
       </div>
+      <Pagination {...pc.bar(b.cards.length)} />
       <ConfirmModal open={!!del} onClose={() => setDel(null)} confirmText="Удалить" text="Вы уверены, что хотите удалить карту?"
         onConfirm={() => { if (del) b.removeCard(del); setDel(null); toast('success', 'Карта удалена'); }} />
     </>
@@ -331,6 +339,7 @@ function Cards() {
 }
 
 function Employees() {
+  const pe = usePaging();
   const { toast } = useApp();
   const [list, setList] = useState(EMPLOYEES);
   const [form, setForm] = useState<null | { id?: string; name: string; phone: string; role: string }>(null);
@@ -359,7 +368,7 @@ function Employees() {
     <>
       <div className="row between"><h2 className="h4">Сотрудники</h2><button className="btn btn-primary btn-sm" onClick={() => setForm({ name: '', phone: '', role: 'Менеджер' })}><Plus size={16} /> Добавить сотрудника</button></div>
       <div className="col mt-16">
-        {list.map((e) => (
+        {pe.slice(list).map((e) => (
           <div key={e.id} className="row between pm-row">
             <div className="row gap-12">
               <span className="avatar sm">{e.name.split(' ').map((x) => x[0]).slice(0, 2).join('')}</span>
@@ -372,6 +381,7 @@ function Employees() {
           </div>
         ))}
       </div>
+      <Pagination {...pe.bar(list.length)} />
       <ConfirmModal open={!!del} onClose={() => setDel(null)} confirmText="Удалить" text="Удалить сотрудника?"
         onConfirm={() => { setList((l) => l.filter((x) => x.id !== del)); setDel(null); toast('success', 'Сотрудник удалён'); }} />
     </>

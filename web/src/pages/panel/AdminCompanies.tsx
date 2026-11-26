@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, Ban, Building2, Download, Landmark, Search } from 'lucide-react';
-import { Badge, Pagination, Select, formatPhone } from '../../components/ui';
+import { Badge, Pagination, usePaging, Select, formatPhone } from '../../components/ui';
 import { CATEGORIES, CHANNEL_LABEL, TODAY, parseDate, useMerchant, type Channel } from '../../lib/merchant';
 import { useApp } from '../../lib/store';
 import { downloadXlsx } from '../../lib/excel';
@@ -9,7 +9,6 @@ import { sum } from '../../lib/billing';
 import { useLedgers } from '../../lib/ledger';
 import './merchant/merchant.css';
 
-const PER = 12;
 const PLAN_NAME: Record<string, string> = { base: 'Базовый', business: 'Бизнес', pro: 'Про', corp: 'Корпоративный' };
 const recent = (d?: string, days = 30) => !!d && (TODAY.getTime() - parseDate(d).getTime()) / 86_400_000 <= days;
 
@@ -24,7 +23,7 @@ export default function AdminCompanies() {
   const [channel, setChannel] = useState('all');
   const [status, setStatus] = useState('all');
   const [cat, setCat] = useState('all');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
   const reset = () => setPage(1);
 
   const digits = q.replace(/\D/g, '');
@@ -32,8 +31,7 @@ export default function AdminCompanies() {
     && (status === 'all' || (status === 'blocked' ? c.blocked : status === 'active30' ? !c.blocked && recent(c.lastActive) : !c.blocked))
     && (cat === 'all' || c.category === cat)
     && ((c.company + c.owner).toLowerCase().includes(q.toLowerCase()) || (digits.length >= 3 && (c.inn.includes(digits) || c.phone.includes(digits.replace(/^998/, ''))))));
-  const total = Math.max(1, Math.ceil(rows.length / PER));
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
 
   return (
     <div className="col gap-16">
@@ -87,7 +85,7 @@ export default function AdminCompanies() {
             </tbody>
           </table>
         </div>
-        {total > 1 && <Pagination page={page} total={total} onPage={setPage} />}
+        <Pagination {...pg.bar(rows.length)} />
       </div>
     </div>
   );

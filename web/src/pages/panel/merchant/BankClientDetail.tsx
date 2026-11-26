@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Ban, KeyRound, MessageSquare, Pencil, Phone, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
-import { Badge, BankLogo, BrandMark, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone } from '../../../components/ui';
+import { Badge, BankLogo, BrandMark, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone, Pagination, usePaging } from '../../../components/ui';
 import { BANKS, SERVICES } from '../../../data/mock';
 import { BLOCK_REASONS, CATEGORIES, CHANNEL_LABEL, currentActor, genAccountNumber, initials, paidUntilOf, useMerchant, type Client, type ClientAccount } from '../../../lib/merchant';
 import { maskAccount } from '../../../data/operations';
@@ -34,6 +34,8 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
   const [issued, setIssued] = useState<{ company: string; login: string; password: string } | null>(null);
   const [openAcc, setOpenAcc] = useState(false);
   const [closeAcc, setCloseAcc] = useState<ClientAccount | null>(null);
+  const ps = usePaging();
+  const pa = usePaging();
   const log = (action: string, details?: string) => c && m.log(bank, kind, { section: admin ? 'companies' : 'clients', action, target: c.company, details });
 
   if (!c) {
@@ -90,7 +92,7 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
           <table className="table">
             <thead><tr><th>Счёт</th>{admin && <th>Банк</th>}<th>Номер</th><th>Валюта</th><th>Открыт</th><th>Статус</th><th /></tr></thead>
             <tbody>
-              {accs.map((a) => (
+              {pa.slice(accs).map((a) => (
                 <tr key={a.id}>
                   <td className="strong" style={{ color: 'var(--text)' }}>{a.name}{admin && a.source === 'user' && <span className="t-xs muted" style={{ display: 'block', fontWeight: 400 }}>добавлен компанией</span>}</td>
                   {admin && <td><BankLogo id={a.bank ?? c.channel} name={BANKS.find((b) => b.id === (a.bank ?? c.channel))?.name ?? (a.bank ?? '')} height={16} /></td>}
@@ -105,6 +107,7 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
             </tbody>
           </table>
         </div>
+        <Pagination {...pa.bar(accs.length)} />
       </section>
 
       <section className="card" style={{ overflow: 'hidden' }}>
@@ -113,7 +116,7 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
           <table className="table">
             <thead><tr><th>Сервис</th><th>Подключён</th><th>Подписка</th></tr></thead>
             <tbody>
-              {services.map((s) => (
+              {ps.slice(services).map((s) => (
                 <tr key={s.sid}>
                   <td><span className="row gap-10">{s.svc && <BrandMark name={s.svc.name} color={s.svc.color} text={s.svc.mark} size={28} />}<span className="strong" style={{ color: 'var(--text)' }}>{s.svc?.name ?? s.sid}</span></span></td>
                   <td>{s.since}</td>
@@ -124,6 +127,7 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
             </tbody>
           </table>
         </div>
+        <Pagination {...ps.bar(services.length)} />
       </section>
 
     </>

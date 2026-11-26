@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download, Search } from 'lucide-react';
-import { Badge, Pagination, Select, formatPhone } from '../../../components/ui';
+import { Badge, Pagination, usePaging, Select, formatPhone } from '../../../components/ui';
 import { CHANNEL_LABEL, paidUntilOf, useMerchant, type Channel } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
 import { downloadXlsx } from '../../../lib/excel';
 import './merchant.css';
 
-const PER = 12;
 
 /**
  * Service cabinet: companies that connected this service via Gluon.
@@ -20,7 +19,7 @@ export default function ServiceClients() {
   const [q, setQ] = useState('');
   const [channel, setChannel] = useState('all');
   const [status, setStatus] = useState('all');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
   const nav = useNavigate();
 
   const mine = useMemo(() => clients.filter((c) => c.services[svcId]), [clients, svcId]);
@@ -28,8 +27,7 @@ export default function ServiceClients() {
     (channel === 'all' || c.channel === channel) &&
     (status === 'all' || c.services[svcId].status === status) &&
     ((c.company + c.owner + c.category).toLowerCase().includes(q.toLowerCase()) || (q.replace(/\D/g, '').length >= 3 && c.phone.includes(q.replace(/\D/g, '').replace(/^998/, '')))));
-  const total = Math.max(1, Math.ceil(rows.length / PER));
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
 
   const exportXlsx = () => {
     downloadXlsx(`${svcId}-clients.xlsx`, 'Клиенты', ['Компания', 'Владелец', 'Телефон', 'Категория', 'Канал', 'Подписка', 'Оплачено до', 'Подключён'],
@@ -73,7 +71,7 @@ export default function ServiceClients() {
             </tbody>
           </table>
         </div>
-        {total > 1 && <Pagination page={page} total={total} onPage={setPage} />}
+        <Pagination {...pg.bar(rows.length)} />
       </div>
 
     </div>

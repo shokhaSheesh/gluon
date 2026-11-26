@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { GripVertical, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { BankLogo, Badge, ConfirmModal, Field, Input, Modal, Select, formatPhone } from '../../components/ui';
+import { BankLogo, Badge, ConfirmModal, Field, Input, Modal, Select, formatPhone, Pagination, usePaging } from '../../components/ui';
 import { BankCardLogo, BankCardView } from '../../components/BankCardView';
 import { moveItem, useDragList } from '../../components/useDragList';
 import { BANKS } from '../../data/mock';
@@ -21,6 +21,7 @@ export default function AdminBanks() {
   const m = useMerchant();
   const [edit, setEdit] = useState<BankCard | 'new' | null>(null);
   const [del, setDel] = useState<BankCard | null>(null);
+  const pg = usePaging();
   const log = (action: string, target: string, details?: string) => m.log('gluon', 'admin', { section: 'partners', action, target, details });
   const { rowProps } = useDragList((from, to) => {
     m.setBanks(moveItem(m.banks, from, to));
@@ -38,7 +39,7 @@ export default function AdminBanks() {
           <table className="table dnd-table">
             <thead><tr><th style={{ width: 64 }} /><th>Банк</th><th>Условия</th><th>Продукты</th><th>Рейтинг</th><th>Онлайн</th><th>Показывать</th><th /></tr></thead>
             <tbody>
-              {m.banks.map((b, i) => (
+              {pg.sliceIdx(m.banks).map(([b, i]) => (
                 <tr key={b.id} {...rowProps(i)} className={clsx(!b.active && 'row-off')}>
                   <td><span className="row gap-6"><GripVertical size={16} className="bn-grip" /><span className="bn-num">{i + 1}</span></span></td>
                   <td><BankCardLogo b={b} height={18} /></td>
@@ -59,6 +60,7 @@ export default function AdminBanks() {
             </tbody>
           </table>
         </div>
+        <Pagination {...pg.bar(m.banks.length)} />
       </div>
 
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit === 'new' ? 'Новый банк' : edit ? edit.name : ''} width={980}>
@@ -171,6 +173,7 @@ export function AdminAccountRequests() {
   const m = useMerchant();
   const [status, setStatus] = useState<'all' | AccStatus>('all');
   const reqs = m.accountRequests.filter((r) => status === 'all' || r.status === status);
+  const pr = usePaging();
   return (
     <div className="col gap-16">
       <h1 className="h4">Заявки на счёт</h1>
@@ -186,7 +189,7 @@ export function AdminAccountRequests() {
           <table className="table">
             <thead><tr><th>Компания</th><th>Контакт</th><th>Банк</th><th>Продукт</th><th>Дата</th><th>Статус</th></tr></thead>
             <tbody>
-              {reqs.map((r) => {
+              {pr.slice(reqs).map((r) => {
                 const c = m.clients.find((x) => x.id === r.clientId);
                 return (
                   <tr key={r.id}>
@@ -206,6 +209,7 @@ export function AdminAccountRequests() {
             </tbody>
           </table>
         </div>
+        <Pagination {...pr.bar(reqs.length)} />
       </div>
     </div>
   );

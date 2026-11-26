@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, Building2, Check, Copy, Download, Eye, EyeOff, Link2, Search, UserPlus, Users, Wand2 } from 'lucide-react';
-import { Badge, Field, Input, Modal, Pagination, PhoneInput, Select, formatPhone } from '../../../components/ui';
+import { Badge, Field, Input, Modal, Pagination, usePaging, PhoneInput, Select, formatPhone } from '../../../components/ui';
 import { CATEGORIES, CHANNEL_LABEL, TODAY, parseDate, useMerchant, type Channel, type Client } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
 import { downloadXlsx } from '../../../lib/excel';
 import { genPassword } from './Team';
 import './merchant.css';
 
-const PER = 12;
 type ActivityKey = 'all' | '30' | '90' | '90+';
 const ACTIVITY: Record<ActivityKey, string> = { all: 'За всё время', '30': '30 дней', '90': '90 дней', '90+': '90+ дней' };
 const daysSince = (d?: string) => (d ? Math.floor((TODAY.getTime() - parseDate(d).getTime()) / 86_400_000) : Infinity);
@@ -29,7 +28,7 @@ export default function BankClients() {
   const [q, setQ] = useState('');
   const [joined, setJoined] = useState('all');
   const [cat, setCat] = useState('all');
-  const [page, setPage] = useState(1);
+  const pg = usePaging(); const { setPage } = pg;
   const [create, setCreate] = useState(false);
   const [issued, setIssued] = useState<{ company: string; login: string; password: string } | null>(null);
   const [activity, setActivity] = useState<ActivityKey>('all');
@@ -38,8 +37,7 @@ export default function BankClients() {
   const digits = q.replace(/\D/g, '');
   const rows = mine.filter((c) => (joined === 'all' || c.joined === joined) && (cat === 'all' || c.category === cat) && (activity === 'all' || isActive(c, activity))
     && ((c.company + c.owner).toLowerCase().includes(q.toLowerCase()) || (digits.length >= 3 && (c.phone.includes(digits.replace(/^998/, '')) || c.inn.includes(digits)))));
-  const total = Math.max(1, Math.ceil(rows.length / PER));
-  const view = rows.slice((page - 1) * PER, page * PER);
+  const view = pg.slice(rows);
   const reset = () => setPage(1);
 
   return (
@@ -108,7 +106,7 @@ export default function BankClients() {
             </tbody>
           </table>
         </div>
-        {total > 1 && <Pagination page={page} total={total} onPage={setPage} />}
+        <Pagination {...pg.bar(rows.length)} />
       </div>
 
       <Modal open={create} onClose={() => setCreate(false)} title="Новый клиент" width={560}>

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { CalendarDays, GripVertical, ImageUp, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { Badge, BrandMark, ConfirmModal, Field, Input, Modal, Select } from '../../components/ui';
+import { Badge, BrandMark, ConfirmModal, Field, Input, Modal, Select, Pagination, usePaging } from '../../components/ui';
 import { DateField } from '../../components/calendar';
 import { SERVICES } from '../../data/mock';
 import { SERVICE_IDS, bannerState, parseDate, useMerchant, type Banner, type BannerState } from '../../lib/merchant';
@@ -27,6 +27,7 @@ export default function AdminBanners() {
   const [del, setDel] = useState<Banner | null>(null);
   const log = (action: string, target: string, details?: string) => m.log('gluon', 'admin', { section: 'banners', action, target, details });
   const list = m.banners;
+  const pg = usePaging();
 
   const drop = (to: number) => {
     if (drag === null || drag === to) { setDrag(null); setOver(null); return; }
@@ -45,7 +46,7 @@ export default function AdminBanners() {
         <button className="btn btn-primary" onClick={() => setEdit({ id: '', service: SERVICE_IDS[0], title: '', active: true })}><Plus size={16} /> Добавить баннер</button>
       </div>
       <div className="col gap-8">
-        {list.map((bn, i) => {
+        {pg.sliceIdx(list).map(([bn, i]) => {
           const s = svc(bn.service);
           return (
             <div key={bn.id} draggable onDragStart={() => setDrag(i)} onDragOver={(e) => { e.preventDefault(); setOver(i); }} onDragLeave={() => setOver((o) => (o === i ? null : o))} onDrop={() => drop(i)} onDragEnd={() => { setDrag(null); setOver(null); }}
@@ -71,6 +72,7 @@ export default function AdminBanners() {
         })}
         {!list.length && <div className="card empty-state">Баннеров нет</div>}
       </div>
+      <div className="card"><Pagination {...pg.bar(list.length)} /></div>
 
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? 'Изменить баннер' : 'Новый баннер'} width={520}>
         {edit && <BannerForm banner={edit} onClose={() => setEdit(null)} onSave={(bn) => {
