@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import { Blocks, Download, Landmark, Link2, MessagesSquare, Search, UserCog, Users } from 'lucide-react';
+import { Blocks, Building2, Download, Handshake, Image, Landmark, Link2, MessagesSquare, Search, UserCog, Users } from 'lucide-react';
 import { Pagination, Select } from '../../../components/ui';
-import { AUDIT_SECTION, parseDate, useMerchant, type AuditSection } from '../../../lib/merchant';
+import { AUDIT_SECTION, orgOf, parseDate, useMerchant, type AuditSection } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
 import { downloadXlsx } from '../../../lib/excel';
 import { PeriodFilter, inRange, rangeOf, type Period } from './period';
@@ -10,15 +10,14 @@ import './merchant.css';
 
 const PER = 15;
 const ICON: Record<AuditSection, React.ReactNode> = {
-  team: <UserCog size={14} />, chat: <MessagesSquare size={14} />, requests: <Link2 size={14} />, clients: <Users size={14} />, accounts: <Landmark size={14} />, services: <Blocks size={14} />,
+  team: <UserCog size={14} />, chat: <MessagesSquare size={14} />, requests: <Link2 size={14} />, clients: <Users size={14} />, accounts: <Landmark size={14} />, companies: <Building2 size={14} />, partners: <Handshake size={14} />, banners: <Image size={14} />, services: <Blocks size={14} />,
 };
 
 /** Journal of employee actions: team & roles, chat, requests. */
 export default function AuditLog() {
   const { session, toast } = useApp();
   const m = useMerchant();
-  const kind = session?.kind === 'bank' ? 'bank' : 'service';
-  const org = session?.orgId ?? '';
+  const { kind, org } = orgOf(session);
   const all = m.auditOf(org, kind);
   const labels = AUDIT_SECTION[kind];
   const [period, setPeriod] = useState<Period>({ key: 'all' });

@@ -74,7 +74,7 @@ export default function ServiceClientDetail() {
         <Stat icon={<Repeat size={18} />} label="Автопродление" value={autoRenew ? 'Включено' : 'Выключено'} sub="Оплата через Gluon" tone={autoRenew ? 'ok' : 'warn'} />
       </div>
 
-      {c.blocked && <BlockBanner client={c} who={c.block?.org ? CHANNEL_LABEL[c.block.org as keyof typeof CHANNEL_LABEL] : undefined} />}
+      {c.blocked && <BlockBanner client={c} />}
       {risk && !c.blocked && (
         <div className="bl-alert" style={{ marginTop: 0, background: 'var(--warning-soft)', borderColor: 'var(--warning-border)', color: 'var(--warning)' }}>
           <AlertTriangle size={18} /><span className="grow">{risk}</span>

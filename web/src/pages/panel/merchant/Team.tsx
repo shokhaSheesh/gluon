@@ -2,7 +2,7 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import { Eye, EyeOff, Lock, Pencil, Plus, ShieldCheck, Trash2, UserPlus, Wand2 } from 'lucide-react';
 import { Badge, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone } from '../../../components/ui';
-import { PAGES, useMerchant, type Employee, type Perm, type Role, type Team as TeamT } from '../../../lib/merchant';
+import { PAGES, orgOf, useMerchant, type Employee, type Perm, type Role, type Team as TeamT } from '../../../lib/merchant';
 import { useApp } from '../../../lib/store';
 import './merchant.css';
 
@@ -18,8 +18,7 @@ const permSummary = (r: Role, pages: { id: string; label: string }[]) =>
 export default function Team() {
   const { session, toast } = useApp();
   const m = useMerchant();
-  const kind = session?.kind === 'bank' ? 'bank' : 'service';
-  const org = session?.orgId ?? '';
+  const { kind, org } = orgOf(session);
   const team = m.teamOf(org, kind);
   const pages = PAGES[kind];
   const save = (t: TeamT) => m.setTeam(org, t);

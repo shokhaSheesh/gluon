@@ -10,6 +10,13 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
  */
 
 export type Channel = 'gluon' | 'kapital' | 'hayot';
+/** Who runs a cabinet: a startup service, an aggregator bank, or the Gluon team (admin). */
+export type OrgKind = 'service' | 'bank' | 'admin';
+
+/** Partner cabinets created by Gluon admin. aggregator = bank-type cabinet (white-label, service switches, creates clients). */
+export interface Partner { id: string; name: string; aggregator: boolean; login: string; password: string; status: 'active' | 'blocked'; created: string; subdomain?: string }
+/** Store banner («Специальные предложения») tied to a service; order = array order. */
+export interface Banner { id: string; service: string; title: string; active: boolean }
 export type SubStatus = 'active' | 'unpaid';
 
 export interface ClientService { status: SubStatus; since: string; paidUntil: string }
@@ -65,6 +72,9 @@ interface MerchantData {
   teams: Record<string, Team>;               // org id → employees & roles
   audit: Record<string, AuditEntry[]>;       // org id → journal (newest first)
   chatRead?: Record<string, string[]>;       // org id → chats already opened
+  partners: Partner[];
+  recommended: Record<string, string[]>;     // 'gluon' = admin default; bank id = override for that bank's clients
+  banners: Banner[];
 }
 
 /** The two demo users (must match data/accounts.ts). */
@@ -206,6 +216,22 @@ function initial(): MerchantData {
     bankServices: { kapital: ['billz', 'robosell', 'robohub', 'ox'], hayot: SVC },
     teams: {},
     audit: {},
+    partners: [
+      { id: 'kapital', name: 'Kapitalbank', aggregator: true, login: 'kapitalbank', password: 'kapital123', status: 'active', created: '01.06.2025', subdomain: 'kapitalbank.gluon.uz' },
+      { id: 'hayot', name: 'Hayot Bank', aggregator: true, login: 'hayotbank', password: 'hayot123', status: 'active', created: '15.03.2026', subdomain: 'hayot.gluon.uz' },
+      { id: 'billz', name: 'Billz', aggregator: false, login: 'billz', password: 'billz123', status: 'active', created: '01.06.2025' },
+      { id: 'ox', name: 'OX', aggregator: false, login: 'ox', password: 'ox12345', status: 'active', created: '10.08.2025' },
+      { id: 'robosell', name: 'Robosell', aggregator: false, login: 'robosell', password: 'robosell1', status: 'active', created: '20.09.2025' },
+      { id: 'robohub', name: 'RoboHub', aggregator: false, login: 'robohub', password: 'robohub1', status: 'active', created: '05.02.2026' },
+    ],
+    recommended: { gluon: ['billz', 'robosell'], kapital: ['billz', 'ox'] },
+    banners: [
+      { id: 'bn-1', service: 'robosell', title: 'Суперсила для бизнеса с Robosell', active: true },
+      { id: 'bn-2', service: 'robohub', title: 'Суперсила для бизнеса с RoboHub', active: true },
+      { id: 'bn-3', service: 'billz', title: 'Billz для магазинов одежды', active: true },
+      { id: 'bn-4', service: 'ox', title: 'Суперсила для бизнеса с OX', active: true },
+      { id: 'bn-5', service: 'delever', title: 'Доставка без хаоса с Delever', active: false },
+    ],
     bankOffers: {
       hayot: { fee: 'Бесплатно', open: '1 день', online: true, perk: '0% за переводы первые 3 месяца', rating: 4.8, products: ['Расчётный счёт', 'Кредит', 'Рассрочка'] },
       aloqa: { fee: '50 000 сум/мес', open: '1–2 дня', online: false, perk: 'Бесплатная бизнес-карта', rating: 4.5, products: ['Расчётный счёт', 'Бизнес-карта'] },
@@ -227,17 +253,20 @@ interface MerchantState extends MerchantData {
   addClientService: (clientId: string, service: string) => void;
   updateClient: (id: string, patch: Partial<Client>) => void;
   reset: () => void;
-  teamOf: (org: string, kind: 'service' | 'bank') => Team;
+  teamOf: (org: string, kind: OrgKind) => Team;
   setTeam: (org: string, t: Team) => void;
-  auditOf: (org: string, kind: 'service' | 'bank') => AuditEntry[];
+  auditOf: (org: string, kind: OrgKind) => AuditEntry[];
   /** Chats with unread messages (counted per chat, not per message). */
   unreadChats: (org: string, contactIds: string[]) => string[];
   markChatRead: (org: string, id: string) => void;
-  log: (org: string, kind: 'service' | 'bank', e: Omit<AuditEntry, 'id' | 'at' | 'actor'> & { actor?: string }) => void;
+  savePartner: (p: Partner) => void;
+  setRecommended: (key: string, ids: string[]) => void;
+  setBanners: (b: Banner[]) => void;
+  log: (org: string, kind: OrgKind, e: Omit<AuditEntry, 'id' | 'at' | 'actor'> & { actor?: string }) => void;
 }
 
 const Ctx = createContext<MerchantState | null>(null);
-const KEY = 'gluon.merchant.v10';
+const KEY = 'gluon.merchant.v11';
 const today = () => new Date().toLocaleDateString('ru-RU');
 
 export function MerchantProvider({ children }: { children: ReactNode }) {
@@ -267,6 +296,9 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     teamOf: (org, kind) => data.teams?.[org] ?? defaultTeam(kind),
     setTeam: (org, t) => setData((d) => ({ ...d, teams: { ...(d.teams ?? {}), [org]: t } })),
     unreadChats: (org, ids) => ids.filter((id, i) => (id === 'support' || i <= 2) && !(data.chatRead?.[org] ?? []).includes(id)),
+    savePartner: (p) => setData((d) => ({ ...d, partners: d.partners.some((x) => x.id === p.id) ? d.partners.map((x) => (x.id === p.id ? p : x)) : [...d.partners, p] })),
+    setRecommended: (key, ids) => setData((d) => ({ ...d, recommended: { ...d.recommended, [key]: ids } })),
+    setBanners: (banners) => setData((d) => ({ ...d, banners })),
     markChatRead: (org, id) => setData((d) => ((d.chatRead?.[org] ?? []).includes(id) ? d : { ...d, chatRead: { ...(d.chatRead ?? {}), [org]: [...(d.chatRead?.[org] ?? []), id] } })),
     auditOf: (org, kind) => data.audit?.[org] ?? defaultAudit(kind, data.teams?.[org] ?? defaultTeam(kind)),
     log: (org, kind, e) => setData((d) => {
@@ -362,7 +394,11 @@ export interface Role { id: string; name: string; system?: boolean; perms: Recor
 export interface Employee { id: string; name: string; phone: string; login: string; roleId: string; status: 'active' | 'blocked'; lastActive: string }
 export interface Team { roles: Role[]; employees: Employee[] }
 
-export const PAGES: Record<'service' | 'bank', { id: string; label: string }[]> = {
+export const PAGES: Record<OrgKind, { id: string; label: string }[]> = {
+  admin: [
+    { id: 'dashboard', label: 'Дашборд' }, { id: 'companies', label: 'Компании' }, { id: 'partners', label: 'Партнёры' }, { id: 'services', label: 'Сервисы и баннеры' },
+    { id: 'pricing', label: 'Тарифы и цены' }, { id: 'banks', label: 'Банки' }, { id: 'chat', label: 'Чат' }, { id: 'team', label: 'Сотрудники и роли' }, { id: 'audit', label: 'Журнал действий' },
+  ],
   service: [
     { id: 'dashboard', label: 'Дашборд' }, { id: 'clients', label: 'Клиенты' }, { id: 'subscriptions', label: 'Подписки' }, { id: 'requests', label: 'Заявки на подключение' },
     { id: 'chat', label: 'Чат' }, { id: 'team', label: 'Сотрудники и роли' }, { id: 'audit', label: 'Журнал действий' },
@@ -378,7 +414,7 @@ const R: Perm = [false, true, false, false];
 const RU: Perm = [false, true, true, false];
 const NONE: Perm = [false, false, false, false];
 
-export function defaultTeam(kind: 'service' | 'bank'): Team {
+export function defaultTeam(kind: OrgKind): Team {
   const pages = PAGES[kind].map((p) => p.id);
   const make = (f: (p: string) => Perm) => Object.fromEntries(pages.map((p) => [p, f(p)]));
   return {
@@ -387,7 +423,13 @@ export function defaultTeam(kind: 'service' | 'bank'): Team {
       { id: 'manager', name: 'Менеджер', perms: make((p) => (p === 'team' ? R : p === 'chat' ? ALL : p === 'dashboard' ? R : RU)) },
       { id: 'support', name: 'Поддержка', perms: make((p) => (p === 'chat' ? ALL : p === 'clients' ? R : NONE)) },
     ],
-    employees: kind === 'service'
+    employees: kind === 'admin'
+      ? [
+          { id: 'e1', name: 'Даулетмуратов Ахмет', phone: '907025329', login: 'admin', roleId: 'owner', status: 'active', lastActive: 'Сейчас в сети' },
+          { id: 'e2', name: 'Сейтжанов Бекзод', phone: '912223344', login: 'bekzod.s', roleId: 'manager', status: 'active', lastActive: 'Сегодня, 10:05' },
+          { id: 'e3', name: 'Алимова Нилуфар', phone: '935556677', login: 'nilufar.a', roleId: 'support', status: 'active', lastActive: 'Сегодня, 09:12' },
+        ]
+      : kind === 'service'
       ? [
           { id: 'e1', name: 'Рустам Эргашев', phone: '901112233', login: 'rustam', roleId: 'owner', status: 'active', lastActive: 'Сейчас в сети' },
           { id: 'e2', name: 'Дилноза Хасанова', phone: '935557788', login: 'dilnoza.h', roleId: 'manager', status: 'active', lastActive: 'Сегодня, 11:20' },
@@ -404,20 +446,39 @@ export function defaultTeam(kind: 'service' | 'bank'): Team {
 }
 
 /* ---------- audit log: team, chat and requests actions of a merchant organisation ---------- */
-export type AuditSection = 'team' | 'chat' | 'requests' | 'clients' | 'accounts' | 'services';
+export type AuditSection = 'team' | 'chat' | 'requests' | 'clients' | 'accounts' | 'services' | 'companies' | 'partners' | 'banners';
 export interface AuditEntry { id: string; at: string /* dd.mm.yyyy HH:mm */; actor: string; section: AuditSection; action: string; target: string; details?: string }
 /** Sections each cabinet logs (in tab order). */
-export const AUDIT_SECTION: Record<'service' | 'bank', Partial<Record<AuditSection, string>>> = {
+export const AUDIT_SECTION: Record<OrgKind, Partial<Record<AuditSection, string>>> = {
   service: { team: 'Сотрудники и роли', chat: 'Чат', requests: 'Заявки на подключение' },
   bank: { clients: 'Клиенты', accounts: 'Расчётные счета', services: 'Сервисы для клиентов', team: 'Сотрудники и роли', chat: 'Чат' },
+  admin: { companies: 'Компании', partners: 'Партнёры', services: 'Сервисы', banners: 'Баннеры', team: 'Сотрудники и роли', chat: 'Чат' },
 };
 
 /** The signed-in person — the demo signs in as the organisation owner. */
 export const currentActor = (team: Team) => team.employees.find((e) => e.roleId === 'owner')?.name ?? 'Владелец';
 
-function defaultAudit(kind: 'service' | 'bank', team: Team): AuditEntry[] {
+function defaultAudit(kind: OrgKind, team: Team): AuditEntry[] {
   const [owner, manager, support, other] = [team.employees[0]?.name, team.employees[1]?.name, team.employees[2]?.name, team.employees[3]?.name ?? team.employees[2]?.name];
   const co = COMPANIES;
+  if (kind === 'admin') {
+    const rows: [string, AuditSection, string, string, string?][] = [
+      [manager, 'banners', 'Изменил порядок баннеров', 'Специальные предложения', 'Billz перемещён на 3 место'],
+      [owner, 'services', 'Отметил сервис рекомендуемым', 'Robosell'],
+      [support, 'companies', 'Изменил данные компании', co[4], 'телефон'],
+      [owner, 'partners', 'Создал партнёра', 'RoboHub', 'Сервис · логин robohub'],
+      [manager, 'chat', 'Ответил на сообщение', co[7]],
+      [owner, 'companies', 'Заблокировал компанию', co[19], 'Подозрительная активность'],
+      [manager, 'banners', 'Отключил баннер', 'Delever'],
+      [owner, 'partners', 'Создал партнёра', 'Hayot Bank', 'Агрегатор · hayot.gluon.uz'],
+      [owner, 'team', 'Добавил сотрудника', support, 'Роль: Поддержка'],
+      [owner, 'services', 'Скрыл сервис из магазина', 'Smartup'],
+    ];
+    return rows.map(([actor, section, action, target, details], i) => {
+      const d = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - Math.floor(i * 2.3));
+      return { id: `a-seed-${i}`, at: `${fmtDate(d)} ${pad(16 - (i % 7))}:${pad((i * 17) % 60)}`, actor: actor ?? 'Владелец', section, action, target: target ?? '—', details };
+    });
+  }
   const bank = kind === 'bank';
   const sec: AuditSection = bank ? 'clients' : 'requests';
   const req = bank
@@ -467,3 +528,11 @@ export function chatContactIds(clients: Client[], platform: string | undefined, 
 /** Business categories used in registration and the bank's «Создать клиента». */
 export const CATEGORIES = [...new Set(CATS)].sort((a, b) => a.localeCompare(b, 'ru'));
 export const SERVICE_IDS = SVC;
+
+/** The cabinet of the signed-in panel user: admin → 'gluon', otherwise the partner's org id. */
+export function orgOf(session: { platform: string; kind?: string; orgId?: string } | null): { kind: OrgKind; org: string } {
+  if (session?.platform === 'admin') return { kind: 'admin', org: 'gluon' };
+  return { kind: session?.kind === 'bank' ? 'bank' : 'service', org: session?.orgId ?? '' };
+}
+/** Services recommended to a client: its bank's choice, otherwise Gluon's default. */
+export const recommendedFor = (rec: Record<string, string[]>, bank?: string) => (bank && rec[bank]) || rec.gluon || [];

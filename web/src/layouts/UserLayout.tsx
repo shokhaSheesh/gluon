@@ -8,7 +8,7 @@ import { ServiceSwitcher } from './ServiceSwitcher';
 import { Notifications } from './Notifications';
 import { MobileTabBar } from './MobileTabBar';
 import { useBilling } from '../lib/billing';
-import { useApplyBrand, useBranding } from '../lib/branding';
+import { brandFor, useApplyBrand, useBranding } from '../lib/branding';
 import { useApp } from '../lib/store';
 import ProfileModal, { type ProfileSection } from '../pages/user/ProfileModal';
 import TopUpModal from '../pages/user/TopUpModal';
@@ -36,7 +36,7 @@ export default function UserLayout() {
   const isBankClient = session?.kind === 'bank';
   const bank = BANKS.find((b) => b.id === session?.orgId);
   const { brands, logoOf } = useBranding();
-  const brand = isBankClient && session?.orgId ? brands[session.orgId] : undefined;
+  const brand = isBankClient && session?.orgId ? brandFor(brands, session.orgId, session.org) : undefined;
   useApplyBrand(brand);
 
   const doLogout = () => { logout(); nav('/login'); };

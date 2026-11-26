@@ -10,7 +10,7 @@ import { DEMO_ACCOUNTS, type DemoAccount } from '../../data/accounts';
 
 export default function Login() {
   const { t, login, toast } = useApp();
-  const { clients, updateClient } = useMerchant();
+  const { clients, updateClient, partners } = useMerchant();
   const nav = useNavigate();
   const [platform, setPlatform] = useState<Platform>('user');
   const [loginValue, setLoginValue] = useState('');
@@ -37,18 +37,23 @@ export default function Login() {
     const demo = DEMO_ACCOUNTS.find((a) => a.platform === platform && a.login === loginValue.trim().toLowerCase());
     // company owners: any Gluon client, incl. the ones a bank created in its cabinet (login = phone)
     const client = isUser ? clients.find((c) => c.credentials?.login === loginValue) : undefined;
-    const secret = demo?.password ?? client?.credentials?.password;
+    // partner cabinets created by Gluon admin (banks / services)
+    const partner = platform === 'merchant' ? partners.find((p) => p.login === loginValue.trim().toLowerCase() || p.id === demo?.orgId) : undefined;
+    const secret = partner?.password ?? demo?.password ?? client?.credentials?.password;
     if (!loginValue) er.login = isUser ? 'Введите номер телефона' : 'Введите логин';
-    else if (!demo && !client) er.login = isUser ? 'Пользователь с таким номером не существует' : 'Пользователь с таким логином не существует';
+    else if (!demo && !client && !partner) er.login = isUser ? 'Пользователь с таким номером не существует' : 'Пользователь с таким логином не существует';
+    else if (partner?.status === 'blocked') er.login = 'Кабинет заблокирован. Обратитесь в Gluon';
     else if (client?.blocked) er.login = `Компания заблокирована. Обратитесь в ${CHANNEL_LABEL[client.channel]}`;
     if (!password) er.password = 'Введите пароль';
     else if (secret && secret !== password) er.password = 'Пароль введён неправильно';
     setErrors(er);
-    if (Object.keys(er).length || (!demo && !client)) {
+    if (Object.keys(er).length || (!demo && !client && !partner)) {
       toast('error', 'Не удалось выполнить вход в систему');
       return;
     }
-    const s: Session = demo ? sessionFrom(demo) : {
+    const s: Session = demo ? sessionFrom(demo) : partner ? {
+      platform: 'merchant', kind: partner.aggregator ? 'bank' : 'service', name: partner.name, login: partner.login, org: partner.name, orgId: partner.id,
+    } : {
       platform: 'user', kind: client!.channel === 'gluon' ? 'gluon' : 'bank', name: client!.owner, login: client!.phone,
       org: client!.channel === 'gluon' ? undefined : CHANNEL_LABEL[client!.channel], orgId: client!.channel === 'gluon' ? undefined : client!.channel,
     };

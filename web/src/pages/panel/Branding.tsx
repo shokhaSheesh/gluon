@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Check, Globe, Home, ImageUp, LayoutGrid, RotateCcw, ArrowLeftRight, Archive, ShoppingBag } from 'lucide-react';
 import { Field, Input } from '../../components/ui';
-import { BRAND_PRESETS, useBranding, type Brand } from '../../lib/branding';
+import { BRAND_PRESETS, brandFor, useBranding, type Brand } from '../../lib/branding';
 import { useApp } from '../../lib/store';
 import './branding.css';
 
@@ -11,10 +11,11 @@ export default function Branding() {
   const { session, toast } = useApp();
   const { brands, save, reset, logoOf } = useBranding();
   const bankId = session?.orgId ?? 'kapital';
-  const [f, setF] = useState<Brand>(brands[bankId]);
+  const current = brandFor(brands, bankId, session?.org);
+  const [f, setF] = useState<Brand>(current);
   const file = useRef<HTMLInputElement>(null);
   const valid = /^#[0-9a-f]{6}$/i.test(f.primary);
-  const changed = JSON.stringify(f) !== JSON.stringify(brands[bankId]);
+  const changed = JSON.stringify(f) !== JSON.stringify(current);
 
   const upload = (fl?: File) => {
     if (!fl) return;
@@ -32,7 +33,7 @@ export default function Branding() {
           <p className="t-sm muted">Ваши клиенты увидят Gluon под вашим логотипом и в ваших цветах.</p>
         </div>
         <div className="row gap-12">
-          <button className="btn btn-ghost btn-sm" onClick={() => { reset(bankId); setF(brands[bankId]); toast('info', 'Настройки сброшены'); }}><RotateCcw size={14} /> Сбросить</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { reset(bankId); setF(brandFor({}, bankId, session?.org)); toast('info', 'Настройки сброшены'); }}><RotateCcw size={14} /> Сбросить</button>
           <button className="btn btn-primary" disabled={!changed || !valid} onClick={() => { save(f); toast('success', 'Брендинг сохранён — клиенты увидят его при следующем входе'); }}>Сохранить</button>
         </div>
       </div>

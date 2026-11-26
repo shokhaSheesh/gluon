@@ -42,6 +42,10 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/** Brand of a bank tenant; banks without saved settings get a default one. */
+export const brandFor = (brands: Record<string, Brand>, bankId: string, bankName = bankId): Brand =>
+  brands[bankId] ?? { bankId, name: `${bankName} Business`, primary: '#1D3B6F', subdomain: `${bankId}.gluon.uz` };
+
 export function useBranding() {
   const v = useContext(Ctx);
   if (!v) throw new Error('useBranding outside BrandingProvider');

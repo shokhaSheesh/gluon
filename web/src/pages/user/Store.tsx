@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { BrandMark, ConfirmModal, Modal } from '../../components/ui';
 import { SERVICES, STORE_EXTRA, type Service } from '../../data/mock';
 import { useApp } from '../../lib/store';
-import { SERVICE_IDS, useMerchant } from '../../lib/merchant';
+import { SERVICE_IDS, recommendedFor, useMerchant } from '../../lib/merchant';
 import { IMAGES } from '../../assets';
 import { sum, useBilling } from '../../lib/billing';
 import { useShell } from '../../layouts/UserLayout';
@@ -18,12 +18,12 @@ const STATUS: Record<St, { label: string; cls: string }> = {
   link: { label: 'Требует подключения', cls: 'badge-warning' },
   available: { label: 'Не подключен', cls: 'badge-neutral' },
 };
-type Item = Service & { st: St };
+type Item = Service & { st: St; rec?: boolean };
 
 export default function Store() {
   const { toast, session } = useApp();
   const nav = useNavigate();
-  const { bankServices } = useMerchant();
+  const { bankServices, banners, recommended } = useMerchant();
   // a partner bank can hide services from its clients (already connected ones stay)
   const allowed = session?.kind === 'bank' && session.orgId ? (bankServices[session.orgId] ?? SERVICE_IDS) : null;
   const { prices, payService, balance, linked, setLink } = useBilling();
@@ -36,7 +36,9 @@ export default function Store() {
 
   // Integrated services take their state from billing (shared with the «Сервисы» switcher); extras are demo-only.
   const items: Item[] = [
-    ...SERVICES.map((s) => ({ ...s, st: (linked[s.id] ?? 'available') as St })).filter((s) => !allowed || s.st !== 'available' || allowed.includes(s.id)),
+    // hidden by Gluon admin («В магазине» off) or by the client's bank → not offered; already connected ones stay
+    ...SERVICES.map((s) => ({ ...s, st: (linked[s.id] ?? 'available') as St }))
+      .filter((s) => s.st !== 'available' || ((prices[s.id]?.active ?? true) && (!allowed || allowed.includes(s.id)))),
     ...extras.map((s) => ({ ...s, st: s.status as St })),
   ];
   const isIntegrated = (id: string) => SERVICES.some((s) => s.id === id);
@@ -54,7 +56,10 @@ export default function Store() {
   };
 
   const mine = items.filter((s) => s.st !== 'available');
-  const recommended = items.filter((s) => s.st === 'available');
+  const recIds = recommendedFor(recommended, session?.kind === 'bank' ? session.orgId : undefined);
+  const recList = items.filter((s) => s.st === 'available').map((s) => ({ ...s, rec: recIds.includes(s.id) })).sort((a, b) => Number(!!b.rec) - Number(!!a.rec));
+  // banners: admin's order, only active ones for services this client can see
+  const offers = banners.filter((bn) => bn.active).map((bn) => ({ bn, s: items.find((x) => x.id === bn.service) })).filter((x): x is { bn: typeof x.bn; s: Item } => !!x.s);
 
   return (
     <div className="col gap-16">
@@ -63,15 +68,15 @@ export default function Store() {
           <h2 className="h5">Специальные предложения</h2>
           <div className="row gap-8">
             <button className="icon-btn sm" onClick={() => setSlide((x) => Math.max(0, x - 1))} aria-label="prev"><ChevronLeft size={16} /></button>
-            <button className="icon-btn sm" onClick={() => setSlide((x) => Math.min(2, x + 1))} aria-label="next"><ChevronRight size={16} /></button>
+            <button className="icon-btn sm" onClick={() => setSlide((x) => Math.min(Math.max(0, offers.length - 4), x + 1))} aria-label="next"><ChevronRight size={16} /></button>
           </div>
         </div>
         <div className="st-offers">
           <div className="st-track" style={{ transform: `translateX(calc(${-slide} * (25% + 4px)))` }}>
-            {items.filter((s) => isIntegrated(s.id)).map((s) => (
-              <div key={s.id} className="st-offer" style={{ background: s.id === 'billz' ? `linear-gradient(180deg, rgba(0,0,0,.05) 30%, rgba(0,0,0,.65)), url(${IMAGES.billzOffer}) center/cover` : `linear-gradient(135deg, ${s.color}, color-mix(in srgb, ${s.color} 45%, #0b1414))` }}>
+            {offers.map(({ bn, s }) => (
+              <div key={bn.id} className="st-offer" style={{ background: s.id === 'billz' ? `linear-gradient(180deg, rgba(0,0,0,.05) 30%, rgba(0,0,0,.65)), url(${IMAGES.billzOffer}) center/cover` : `linear-gradient(135deg, ${s.color}, color-mix(in srgb, ${s.color} 45%, #0b1414))` }}>
                 <span className="badge badge-success" style={{ alignSelf: 'flex-start' }}>Специальное предложение</span>
-                {s.id === 'billz' ? <span /> : <p className="st-offer-title">Суперсила для бизнеса<br />с {s.name}</p>}
+                {s.id === 'billz' ? <span /> : <p className="st-offer-title">{bn.title}</p>}
                 <div className="row between">
                   <span className="row gap-8"><BrandMark name={s.name} color="#ffffff33" text={s.mark} size={30} /><span><b>{s.name}</b><br /><span className="t-xs">{priceOf(s)}</span></span></span>
                   <button className="btn btn-secondary btn-sm" onClick={() => (s.st === 'available' ? setConfirm(s) : s.st === 'link' ? setLinking(s) : toast('info', `${s.name} уже подключён`))}>
@@ -85,7 +90,7 @@ export default function Store() {
       </section>
 
       <ServiceGrid title="Мои сервисы" items={mine} onAct={act} />
-      <ServiceGrid title="Рекомендованные сервисы" items={recommended} onAct={act} priceOf={priceOf} extraLocked />
+      <ServiceGrid title="Рекомендованные сервисы" items={recList} onAct={act} priceOf={priceOf} extraLocked />
 
       <Modal open={!!confirm} onClose={() => setConfirm(null)} title="Подключение сервиса" width={440}>
         {confirm && (
@@ -138,7 +143,7 @@ function ServiceGrid({ title, items, onAct, priceOf, extraLocked }: { title: str
             <div key={s.id} className="st-card">
               <div className="row between">
                 <BrandMark name={s.name} color={s.color} text={s.mark} size={34} />
-                <span className={`badge ${st.cls}`}>{st.label}</span>
+                <span className="row gap-6">{s.rec && <span className="badge badge-primary">Рекомендуем</span>}<span className={`badge ${st.cls}`}>{st.label}</span></span>
               </div>
               <p className="medium mt-8">{s.name}</p>
               <p className="t-xs muted st-desc">{s.description}</p>

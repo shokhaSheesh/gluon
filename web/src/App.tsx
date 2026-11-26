@@ -26,14 +26,16 @@ import ServiceClientDetail from './pages/panel/merchant/ServiceClientDetail';
 import ServiceSubscriptions from './pages/panel/merchant/ServiceSubscriptions';
 import AuditLog from './pages/panel/merchant/AuditLog';
 import BankClients from './pages/panel/merchant/BankClients';
-import BankClientDetail from './pages/panel/merchant/BankClientDetail';
+import BankClientDetail, { ClientDetail } from './pages/panel/merchant/BankClientDetail';
+import AdminCompanies from './pages/panel/AdminCompanies';
+import AdminPartners from './pages/panel/AdminPartners';
+import AdminServices from './pages/panel/AdminServices';
 import BankDashboard from './pages/panel/merchant/BankDashboard';
 import BankServices from './pages/panel/merchant/BankServices';
 import AdminBanks from './pages/panel/AdminBanks';
 import Team from './pages/panel/merchant/Team';
 import { MerchantProvider } from './lib/merchant';
 import PanelDashboard from './pages/panel/PanelDashboard';
-import Companies from './pages/panel/Companies';
 import PanelChat from './pages/panel/PanelChat';
 
 /** Only lets in a session of the matching platform; otherwise sends to login or the session's own home. */
@@ -76,16 +78,6 @@ function Home() {
   return <Navigate to={session ? PLATFORM_HOME[session.platform] : '/login'} replace />;
 }
 
-function PanelRoutes() {
-  return (
-    <>
-      <Route index element={<PanelDashboard />} />
-      <Route path="companies" element={<Companies />} />
-      <Route path="chat" element={<PanelChat />} />
-    </>
-  );
-}
-
 export default function App() {
   return (
     <AppProvider>
@@ -124,7 +116,14 @@ export default function App() {
           </Route>
 
           <Route path="/admin" element={<Guard platform="admin"><PanelLayout platform="admin" /></Guard>}>
-            {PanelRoutes()}
+            <Route index element={<PanelDashboard />} />
+            <Route path="companies" element={<AdminCompanies />} />
+            <Route path="companies/:id" element={<ClientDetail admin />} />
+            <Route path="partners" element={<AdminPartners />} />
+            <Route path="services" element={<AdminServices />} />
+            <Route path="chat" element={<PanelChat />} />
+            <Route path="team" element={<Team />} />
+            <Route path="audit" element={<AuditLog />} />
             <Route path="pricing" element={<Pricing />} />
             <Route path="banks" element={<AdminBanks />} />
           </Route>

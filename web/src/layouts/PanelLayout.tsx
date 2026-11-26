@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { CalendarCheck, Landmark, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
+import { CalendarCheck, Handshake, Landmark, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
 import { Badge, ConfirmModal, Field, Input, LangSelect, Logo, Modal, PasswordInput, PhoneInput, ThemeToggle } from '../components/ui';
 import { useApp, type Platform } from '../lib/store';
-import { chatContactIds, currentActor, useMerchant, type Employee } from '../lib/merchant';
+import { chatContactIds, currentActor, orgOf, useMerchant, type Employee } from '../lib/merchant';
 import './panel.css';
 
 export default function PanelLayout({ platform }: { platform: Exclude<Platform, 'user'> }) {
@@ -17,8 +17,8 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
   const base = platform === 'admin' ? '/admin' : '/merchant';
   const mer = useMerchant();
   const pendingConn = mer.connRequests.filter((r) => r.status === 'pending' && r.service === session?.orgId).length;
-  const mKind = session?.kind === 'bank' ? 'bank' : 'service';
-  const team = platform === 'merchant' ? mer.teamOf(session?.orgId ?? '', mKind) : null;
+  const { kind: mKind, org: mOrg } = orgOf(session);
+  const team = mer.teamOf(mOrg, mKind);
   const me = team?.employees.find((e) => e.name === currentActor(team)) ?? null;
   const unreadChats = mer.unreadChats(session?.orgId ?? 'admin', chatContactIds(mer.clients, session?.platform, session?.kind, session?.orgId).ids).length;
 
@@ -28,9 +28,13 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
   const links: Link[] = platform === 'admin' ? [
     { to: base, end: true, label: t('dashboard'), icon: <LayoutGrid size={20} /> },
     { to: `${base}/companies`, label: t('companies'), icon: <Building2 size={20} /> },
+    { to: `${base}/partners`, label: 'Партнёры', icon: <Handshake size={20} /> },
+    { to: `${base}/services`, label: 'Сервисы и баннеры', icon: <Blocks size={20} /> },
     { to: `${base}/pricing`, label: 'Тарифы и цены', icon: <CreditCard size={20} /> },
     { to: `${base}/banks`, label: 'Банки', icon: <Landmark size={20} /> },
     { to: `${base}/chat`, label: t('chat'), icon: <MessagesSquare size={20} />, badge: unreadChats },
+    { to: `${base}/team`, label: 'Сотрудники и роли', icon: <UserCog size={20} /> },
+    { to: `${base}/audit`, label: 'Журнал действий', icon: <History size={20} /> },
   ] : session?.kind === 'bank' ? [
     { to: m, end: true, label: t('dashboard'), icon: <LayoutGrid size={20} /> },
     { to: `${m}/clients`, label: 'Клиенты', icon: <Users size={20} /> },
@@ -88,7 +92,7 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
 
       <Modal open={!!profile} onClose={() => setProfile(null)} width={760}>
         {profile && <PanelProfile me={me} roleName={team?.roles.find((r) => r.id === me?.roleId)?.name} org={session?.name}
-          onSaveMe={(e) => { if (team && session?.orgId) mer.setTeam(session.orgId, { ...team, employees: team.employees.map((x) => (x.id === e.id ? e : x)) }); }}
+          onSaveMe={(e) => { if (team) mer.setTeam(mOrg, { ...team, employees: team.employees.map((x) => (x.id === e.id ? e : x)) }); }}
           section={profile} onSection={setProfile} onClose={() => setProfile(null)} onLogout={() => { setProfile(null); setConfirmOut(true); }} />}
       </Modal>
       <ConfirmModal open={confirmOut} onClose={() => setConfirmOut(false)} onConfirm={() => { logout(); nav('/login'); }} text={t('logoutAsk')} confirmText={t('exit')} />

@@ -3,33 +3,43 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Ban, KeyRound, MessageSquare, Pencil, Phone, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Badge, BrandMark, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone } from '../../../components/ui';
 import { SERVICES } from '../../../data/mock';
-import { BLOCK_REASONS, CATEGORIES, currentActor, genAccountNumber, initials, paidUntilOf, useMerchant, type Client, type ClientAccount } from '../../../lib/merchant';
+import { BLOCK_REASONS, CATEGORIES, CHANNEL_LABEL, currentActor, genAccountNumber, initials, paidUntilOf, useMerchant, type Client, type ClientAccount } from '../../../lib/merchant';
 import { maskAccount } from '../../../data/operations';
 import { useApp } from '../../../lib/store';
 import { CredentialsModal, JOINED_LABEL } from './BankClients';
 import { genPassword } from './Team';
 import './merchant.css';
 
-/** Bank cabinet: one client — company data, connected services and access to Gluon. */
-export default function BankClientDetail() {
+const PLAN_NAME: Record<string, string> = { base: 'Базовый', business: 'Бизнес', pro: 'Про', corp: 'Корпоративный' };
+
+export default function BankClientDetail() { return <ClientDetail />; }
+
+/**
+ * One company — company data, owner login, accounts, services, block.
+ * Bank cabinet: only its own clients, can open accounts. Admin: any company, accounts read-only.
+ */
+export function ClientDetail({ admin }: { admin?: boolean }) {
   const { id } = useParams();
   const nav = useNavigate();
   const { session, toast } = useApp();
   const m = useMerchant();
-  const bank = session?.orgId ?? '';
-  const c = m.clients.find((x) => x.id === id && x.channel === bank);
+  const bank = admin ? 'gluon' : session?.orgId ?? '';
+  const kind = admin ? 'admin' : 'bank';
+  const base = admin ? '/admin' : '/merchant';
+  const listPath = admin ? '/admin/companies' : '/merchant/clients';
+  const c = m.clients.find((x) => x.id === id && (admin || x.channel === bank));
   const [edit, setEdit] = useState(false);
   const [block, setBlock] = useState(false);
   const [issued, setIssued] = useState<{ company: string; login: string; password: string } | null>(null);
   const [openAcc, setOpenAcc] = useState(false);
   const [closeAcc, setCloseAcc] = useState<ClientAccount | null>(null);
-  const log = (action: string, details?: string) => c && m.log(bank, 'bank', { section: 'clients', action, target: c.company, details });
+  const log = (action: string, details?: string) => c && m.log(bank, kind, { section: admin ? 'companies' : 'clients', action, target: c.company, details });
 
   if (!c) {
     return (
       <div className="card empty-state">
         Клиент не найден
-        <button className="btn btn-secondary btn-sm" onClick={() => nav('/merchant/clients')}>К списку клиентов</button>
+        <button className="btn btn-secondary btn-sm" onClick={() => nav(listPath)}>К списку клиентов</button>
       </div>
     );
   }
@@ -37,7 +47,7 @@ export default function BankClientDetail() {
 
   return (
     <div className="col gap-20">
-      <button className="btn-link t-sm row gap-4" style={{ alignSelf: 'flex-start' }} onClick={() => nav('/merchant/clients')}><ArrowLeft size={14} /> Все клиенты</button>
+      <button className="btn-link t-sm row gap-4" style={{ alignSelf: 'flex-start' }} onClick={() => nav(listPath)}><ArrowLeft size={14} /> {admin ? 'Все компании' : 'Все клиенты'}</button>
 
       <div className="card cd-head">
         <span className="cd-avatar">{initials(c.company)}</span>
@@ -45,12 +55,13 @@ export default function BankClientDetail() {
           <div className="row gap-8 wrap">
             <h1 className="h4">{c.company}</h1>
             {c.blocked ? <Badge kind="error">Заблокирована</Badge> : <Badge kind="success">Активна</Badge>}
-            {c.joined === 'bank' ? <Badge kind="primary">{JOINED_LABEL.bank}</Badge> : <Badge kind="neutral">{JOINED_LABEL.self}</Badge>}
+            {admin && <Badge kind={c.channel === 'gluon' ? 'primary' : 'neutral'}>{CHANNEL_LABEL[c.channel]}</Badge>}
+            {c.channel !== 'gluon' && (c.joined === 'bank' ? <Badge kind="primary">{JOINED_LABEL.bank}</Badge> : <Badge kind="neutral">{JOINED_LABEL.self}</Badge>)}
           </div>
           <p className="muted t-sm row gap-6 wrap">{c.owner} · <a className="mc-phone" href={`tel:+998${c.phone}`}><Phone size={13} /> {formatPhone(c.phone)}</a></p>
         </div>
         <div className="row gap-8 wrap">
-          <button className="btn btn-secondary" onClick={() => nav('/merchant/chat')}><MessageSquare size={16} /> Написать в чат</button>
+          <button className="btn btn-secondary" onClick={() => nav(`${base}/chat`)}><MessageSquare size={16} /> Написать в чат</button>
           <button className="btn btn-secondary" onClick={() => setEdit(true)}><Pencil size={16} /> Изменить</button>
           {c.blocked
             ? <button className="btn btn-secondary" onClick={() => { m.updateClient(c.id, { blocked: false, block: undefined }); log('Разблокировал компанию'); toast('success', 'Компания разблокирована'); }}><ShieldCheck size={16} /> Разблокировать</button>
@@ -69,6 +80,7 @@ export default function BankClientDetail() {
             <dt>Категория</dt><dd>{c.category}</dd>
             <dt>Адрес</dt><dd>{c.address}</dd>
             <dt>Регистрация</dt><dd>{c.registered}</dd>
+            {admin && <><dt>Тариф Gluon</dt><dd>{PLAN_NAME[c.plan] ?? c.plan}</dd><dt>Последний вход</dt><dd>{c.lastActive ?? 'Не входил'}</dd></>}
           </dl>
         </section>
 
@@ -92,7 +104,7 @@ export default function BankClientDetail() {
       <section className="card" style={{ overflow: 'hidden' }}>
         <div className="row between" style={{ padding: '14px 18px' }}>
           <h3 className="medium">Расчётные счета <span className="muted t-sm">{(c.accounts ?? []).filter((a) => a.status === 'active').length}</span></h3>
-          <button className="btn btn-primary btn-sm" onClick={() => setOpenAcc(true)} disabled={c.blocked}><Plus size={14} /> Открыть счёт</button>
+          {!admin && <button className="btn btn-primary btn-sm" onClick={() => setOpenAcc(true)} disabled={c.blocked}><Plus size={14} /> Открыть счёт</button>}
         </div>
         <div className="table-wrap">
           <table className="table">
@@ -105,7 +117,7 @@ export default function BankClientDetail() {
                   <td>{a.currency}</td>
                   <td>{a.opened}</td>
                   <td>{a.status === 'active' ? <Badge kind="success">Активен</Badge> : <span className="row gap-6"><Badge kind="neutral">Закрыт</Badge><span className="t-xs muted">{a.closed}</span></span>}</td>
-                  <td style={{ textAlign: 'right' }}>{a.status === 'active' && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }} onClick={() => setCloseAcc(a)}>Закрыть</button>}</td>
+                  <td style={{ textAlign: 'right' }}>{!admin && a.status === 'active' && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }} onClick={() => setCloseAcc(a)}>Закрыть</button>}</td>
                 </tr>
               ))}
               {!(c.accounts ?? []).length && <tr><td colSpan={6}><div className="empty-state">Счетов пока нет</div></td></tr>}
@@ -142,10 +154,10 @@ export default function BankClientDetail() {
         }} />}
       </Modal>
       <Modal open={block} onClose={() => setBlock(false)} title="Заблокировать компанию" width={480}>
-        {block && <BlockForm company={c.company} onClose={() => setBlock(false)} onSave={(reason, note) => {
+        {block && <BlockForm admin={admin} company={c.company} onClose={() => setBlock(false)} onSave={(reason, note) => {
           const now = new Date();
           const at = `${now.toLocaleDateString('ru-RU')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          m.updateClient(c.id, { blocked: true, block: { reason, note, at, by: currentActor(m.teamOf(bank, 'bank')), org: bank } });
+          m.updateClient(c.id, { blocked: true, block: { reason, note, at, by: currentActor(m.teamOf(bank, kind)), org: bank } });
           log('Заблокировал компанию', note ? `${reason}: ${note}` : reason);
           setBlock(false);
           toast('success', 'Компания заблокирована');
@@ -234,8 +246,9 @@ function EditClientForm({ client, onClose, onSave }: { client: Client; onClose: 
 }
 
 /** Why the company is blocked — the same banner in the bank, service and admin cabinets. */
-export function BlockBanner({ client, who }: { client: Client; who?: string }) {
+export function BlockBanner({ client }: { client: Client }) {
   const b = client.block;
+  const who = b?.org === 'gluon' ? 'Gluon' : b?.org ? CHANNEL_LABEL[b.org as keyof typeof CHANNEL_LABEL] : undefined;
   return (
     <div className="bl-alert cb-banner">
       <Ban size={18} />
@@ -248,16 +261,16 @@ export function BlockBanner({ client, who }: { client: Client; who?: string }) {
   );
 }
 
-function BlockForm({ company, onClose, onSave }: { company: string; onClose: () => void; onSave: (reason: string, note: string) => void }) {
+function BlockForm({ admin, company, onClose, onSave }: { admin?: boolean; company: string; onClose: () => void; onSave: (reason: string, note: string) => void }) {
   const [reason, setReason] = useState(BLOCK_REASONS[0]);
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
   return (
     <div className="col gap-16" style={{ padding: 24 }}>
-      <p className="t-sm muted">{company}: владелец и сотрудники не смогут войти в Gluon. Причину увидят Gluon и подключённые сервисы.</p>
+      <p className="t-sm muted">{company}: владелец и сотрудники не смогут войти в Gluon. Причину увидят {admin ? 'банк клиента' : 'Gluon'} и подключённые сервисы.</p>
       <Field label="Причина"><Select value={reason} onChange={(v) => { setReason(v); setErr(''); }} options={BLOCK_REASONS.map((r) => ({ value: r, label: r }))} /></Field>
       <Field label="Описание" error={err}>
-        <textarea className="cb-note" rows={3} value={note} onChange={(e) => { setNote(e.target.value); setErr(''); }} placeholder="Подробности для Gluon и сервисов" />
+        <textarea className="cb-note" rows={3} value={note} onChange={(e) => { setNote(e.target.value); setErr(''); }} placeholder="Подробности" />
       </Field>
       <div className="row gap-12">
         <button className="btn btn-secondary grow" onClick={onClose}>Отмена</button>
