@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { BrandMark, ConfirmModal, Modal } from '../../components/ui';
 import { SERVICES, STORE_EXTRA, type Service } from '../../data/mock';
 import { useApp } from '../../lib/store';
-import { SERVICE_IDS, recommendedFor, useMerchant } from '../../lib/merchant';
+import { SERVICE_IDS, orderedServices, recommendedFor, useMerchant } from '../../lib/merchant';
 import { IMAGES } from '../../assets';
 import { sum, useBilling } from '../../lib/billing';
 import { useShell } from '../../layouts/UserLayout';
@@ -23,7 +23,8 @@ type Item = Service & { st: St; rec?: boolean };
 export default function Store() {
   const { toast, session } = useApp();
   const nav = useNavigate();
-  const { bankServices, banners, recommended } = useMerchant();
+  const { bankServices, banners, recommended, serviceOrder } = useMerchant();
+  const order = orderedServices(serviceOrder);
   // a partner bank can hide services from its clients (already connected ones stay)
   const allowed = session?.kind === 'bank' && session.orgId ? (bankServices[session.orgId] ?? SERVICE_IDS) : null;
   const { prices, payService, balance, linked, setLink } = useBilling();
@@ -37,7 +38,7 @@ export default function Store() {
   // Integrated services take their state from billing (shared with the «Сервисы» switcher); extras are demo-only.
   const items: Item[] = [
     // hidden by Gluon admin («В магазине» off) or by the client's bank → not offered; already connected ones stay
-    ...SERVICES.map((s) => ({ ...s, st: (linked[s.id] ?? 'available') as St }))
+    ...[...SERVICES].sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99)).map((s) => ({ ...s, st: (linked[s.id] ?? 'available') as St }))
       .filter((s) => s.st !== 'available' || ((prices[s.id]?.active ?? true) && (!allowed || allowed.includes(s.id)))),
     ...extras.map((s) => ({ ...s, st: s.status as St })),
   ];

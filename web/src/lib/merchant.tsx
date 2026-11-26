@@ -65,14 +65,20 @@ export interface AccountRequest {
   contact: string; phone: string; comment?: string;
 }
 
-export interface BankOffer { fee: string; open: string; online: boolean; perk: string; rating: number; products: string[] }
+/** A label/value row typed by Gluon admin (e.g. «Обслуживание» — «Бесплатно»). */
+export interface BankTerm { label: string; value: string }
+/** A bank product with the parameters users see in the comparison tables (e.g. Кредит → Годовой процент 24%). */
+export interface BankProduct { name: string; params: BankTerm[] }
+/** Bank card in «Предложения банков» — managed by Gluon admin; array order = order for users. */
+export interface BankCard { id: string; name: string; logo?: string; rating: number; online: boolean; perk: string; terms: BankTerm[]; products: BankProduct[]; active: boolean }
 
 interface MerchantData {
   clients: Client[];
   connRequests: ConnRequest[];
   accountRequests: AccountRequest[];
   bankServices: Record<string, string[]>;   // bank → service ids visible to its clients
-  bankOffers: Record<string, BankOffer>;
+  banks: BankCard[];
+  serviceOrder?: string[];                   // admin's order of services (store, lists)
   teams: Record<string, Team>;               // org id → employees & roles
   audit: Record<string, AuditEntry[]>;       // org id → journal (newest first)
   chatRead?: Record<string, string[]>;       // org id → chats already opened
@@ -237,13 +243,7 @@ function initial(): MerchantData {
       { id: 'bn-4', service: 'ox', title: 'Суперсила для бизнеса с OX', active: true },
       { id: 'bn-5', service: 'delever', title: 'Доставка без хаоса с Delever', active: false },
     ],
-    bankOffers: {
-      hayot: { fee: 'Бесплатно', open: '1 день', online: true, perk: '0% за переводы первые 3 месяца', rating: 4.8, products: ['Расчётный счёт', 'Кредит', 'Рассрочка'] },
-      aloqa: { fee: '50 000 сум/мес', open: '1–2 дня', online: false, perk: 'Бесплатная бизнес-карта', rating: 4.5, products: ['Расчётный счёт', 'Бизнес-карта'] },
-      kapital: { fee: '35 000 сум/мес', open: 'Сегодня', online: true, perk: 'Эквайринг от 0,9%', rating: 4.7, products: ['Расчётный счёт', 'Эквайринг', 'Кредит', 'Бизнес-карта'] },
-      anor: { fee: 'Бесплатно', open: '1 день', online: true, perk: 'Полностью онлайн, без визита', rating: 4.6, products: ['Расчётный счёт', 'Рассрочка'] },
-      sqb: { fee: '45 000 сум/мес', open: '1–3 дня', online: false, perk: 'Льготные кредиты для МСБ', rating: 4.4, products: ['Расчётный счёт', 'Кредит'] },
-    },
+    banks: seedBanks(),
   };
 }
 
@@ -253,7 +253,9 @@ interface MerchantState extends MerchantData {
   addAccountRequest: (r: Omit<AccountRequest, 'id' | 'date' | 'status'>) => void;
   setAccountStatus: (id: string, status: AccStatus, comment?: string) => void;
   setBankServices: (bank: string, ids: string[]) => void;
-  setBankOffer: (bank: string, offer: BankOffer) => void;
+  saveBank: (b: BankCard) => void;
+  setBanks: (list: BankCard[]) => void;
+  setServiceOrder: (ids: string[]) => void;
   addClient: (c: Omit<Client, 'id' | 'registered'>) => Client;
   addClientService: (clientId: string, service: string) => void;
   updateClient: (id: string, patch: Partial<Client>) => void;
@@ -272,7 +274,7 @@ interface MerchantState extends MerchantData {
 }
 
 const Ctx = createContext<MerchantState | null>(null);
-const KEY = 'gluon.merchant.v11';
+const KEY = 'gluon.merchant.v12';
 const today = () => new Date().toLocaleDateString('ru-RU');
 
 export function MerchantProvider({ children }: { children: ReactNode }) {
@@ -283,6 +285,7 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
   // partners / services created by admin join the shared catalogs (store, logos, bank lists)
   (data.catalog ?? []).forEach(registerService);
   data.partners.forEach(registerPartner);
+  (data.banks ?? []).forEach(registerBankCard);
 
   const value = useMemo<MerchantState>(() => ({
     ...data,
@@ -290,7 +293,9 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     addAccountRequest: (r) => setData((d) => ({ ...d, accountRequests: [{ ...r, id: `ar-${Date.now()}`, date: today(), status: 'new' }, ...d.accountRequests] })),
     setAccountStatus: (id, status, comment) => setData((d) => ({ ...d, accountRequests: d.accountRequests.map((r) => (r.id === id ? { ...r, status, comment: comment ?? r.comment } : r)) })),
     setBankServices: (bank, ids) => setData((d) => ({ ...d, bankServices: { ...d.bankServices, [bank]: ids } })),
-    setBankOffer: (bank, offer) => setData((d) => ({ ...d, bankOffers: { ...d.bankOffers, [bank]: offer } })),
+    saveBank: (b) => { registerBankCard(b); setData((d) => ({ ...d, banks: d.banks.some((x) => x.id === b.id) ? d.banks.map((x) => (x.id === b.id ? b : x)) : [...d.banks, b] })); },
+    setBanks: (banks) => setData((d) => ({ ...d, banks })),
+    setServiceOrder: (serviceOrder) => setData((d) => ({ ...d, serviceOrder })),
     addClient: (c) => {
       const client: Client = { ...c, id: `c-${Date.now()}`, registered: today() };
       setData((d) => ({ ...d, clients: [client, ...d.clients] }));
@@ -570,3 +575,32 @@ export function registerPartner(p: Partner) {
   }
 }
 export const slug = (s: string) => s.toLowerCase().replace(/[“”"«»']/g, '').replace(/bank|банк/gi, '').trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `p${Date.now() % 10000}`;
+
+/** Banks typed by admin in «Банки» also appear in bank lists (requests, lead form, logos). */
+export function registerBankCard(b: BankCard) {
+  if (!BANKS.some((x) => x.id === b.id)) BANKS.push({ id: b.id, name: b.name, color: '#1D3B6F', mark: b.name.slice(0, 1).toUpperCase() });
+  if (b.logo) BANK_LOGOS[b.id] = { word: b.logo, mark: b.logo };
+}
+/** Services in admin's order (new ones at the end). */
+export const orderedServices = (order: string[] | undefined) => [...(order ?? []).filter((id) => SVC.includes(id)), ...SVC.filter((id) => !(order ?? []).includes(id))];
+
+const T = (label: string, value: string): BankTerm => ({ label, value });
+function seedBanks(): BankCard[] {
+  const credit = (rate: string, max: string, term: string, approve: string, fine: string, online: boolean): BankProduct => ({ name: 'Кредит', params: [T('Годовой процент', rate), T('Макс. сумма', max), T('Срок', term), T('Решение', approve), T('Штраф в день', fine), T('Онлайн', online ? 'Да' : 'Нет')] });
+  const inst = (free: boolean, term: string, first: string, approve: string): BankProduct => ({ name: 'Рассрочка', params: [T('Без процентов', free ? 'Да' : 'Нет'), T('Макс. срок', term), T('Первый взнос', first), T('Магазины-партнёры', '137'), T('Документы', 'Паспорт'), T('Решение', approve)] });
+  const acc = (fee: string, open: string): BankProduct => ({ name: 'Расчётный счёт', params: [T('Обслуживание', fee), T('Открытие', open), T('Валюта', 'UZS, USD'), T('Интернет-банк', 'Да')] });
+  const card = (issue: string, cashback: string): BankProduct => ({ name: 'Бизнес-карта', params: [T('Выпуск', issue), T('Кэшбэк', cashback), T('Платёжная система', 'Uzcard, Visa')] });
+  const acq = (fee: string): BankProduct => ({ name: 'Эквайринг', params: [T('Комиссия', fee), T('Подключение', '1 день'), T('Терминал', 'Бесплатно')] });
+  return [
+    { id: 'hayot', name: 'Hayot Bank', rating: 4.8, online: true, perk: '0% за переводы первые 3 месяца', active: true,
+      terms: [T('Обслуживание', 'Бесплатно'), T('Открытие счёта', '1 день')], products: [acc('Бесплатно', '1 день'), credit('24%', '300 млн сум', '60 мес.', '1–2 дня', '0,05%', true), inst(true, '12 мес.', '0–20%', '1 день')] },
+    { id: 'aloqa', name: 'Aloqabank', rating: 4.5, online: false, perk: 'Бесплатная бизнес-карта', active: true,
+      terms: [T('Обслуживание', '50 000 сум/мес'), T('Открытие счёта', '1–2 дня')], products: [acc('50 000 сум/мес', '1–2 дня'), card('Бесплатно', '1%'), credit('25%', '250 млн сум', '60 мес.', '1 день', '0,07%', false)] },
+    { id: 'kapital', name: 'Kapitalbank', rating: 4.7, online: true, perk: 'Эквайринг от 0,9%', active: true,
+      terms: [T('Обслуживание', '35 000 сум/мес'), T('Открытие счёта', 'Сегодня')], products: [acc('35 000 сум/мес', 'Сегодня'), acq('от 0,9%'), credit('24%', '300 млн сум', '60 мес.', '1–2 дня', '0,05%', true), card('20 000 сум', '0,5%'), inst(true, '12 мес.', '10%', '1–2 дня')] },
+    { id: 'anor', name: 'Anorbank', rating: 4.6, online: true, perk: 'Полностью онлайн, без визита', active: true,
+      terms: [T('Обслуживание', 'Бесплатно'), T('Открытие счёта', '1 день')], products: [acc('Бесплатно', '1 день'), inst(true, '9 мес.', '0%', 'Быстро'), credit('24%', '300 млн сум', '60 мес.', '1–2 дня', '0,05%', true)] },
+    { id: 'sqb', name: 'SQB', rating: 4.4, online: false, perk: 'Льготные кредиты для МСБ', active: true,
+      terms: [T('Обслуживание', '45 000 сум/мес'), T('Открытие счёта', '1–3 дня')], products: [acc('45 000 сум/мес', '1–3 дня'), credit('22%', '500 млн сум', '84 мес.', '3–5 дней', '0,04%', false), inst(false, '6 мес.', '20%', 'Очень быстро')] },
+  ];
+}
