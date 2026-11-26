@@ -396,8 +396,10 @@ export interface Team { roles: Role[]; employees: Employee[] }
 
 export const PAGES: Record<OrgKind, { id: string; label: string }[]> = {
   admin: [
-    { id: 'dashboard', label: 'Дашборд' }, { id: 'companies', label: 'Компании' }, { id: 'partners', label: 'Партнёры' }, { id: 'services', label: 'Сервисы и баннеры' },
-    { id: 'pricing', label: 'Тарифы и цены' }, { id: 'banks', label: 'Банки' }, { id: 'chat', label: 'Чат' }, { id: 'team', label: 'Сотрудники и роли' }, { id: 'audit', label: 'Журнал действий' },
+    { id: 'dashboard', label: 'Дашборд' }, { id: 'companies', label: 'Компании' }, { id: 'subscriptions', label: 'Подписки' },
+    { id: 'payments', label: 'Платежи' }, { id: 'operations', label: 'Операции' }, { id: 'pricing', label: 'Тарифы и цены' },
+    { id: 'partners', label: 'Партнёры' }, { id: 'services', label: 'Сервисы и баннеры' }, { id: 'banks', label: 'Банки' },
+    { id: 'chat', label: 'Чат' }, { id: 'team', label: 'Сотрудники и роли' }, { id: 'audit', label: 'Журнал действий' },
   ],
   service: [
     { id: 'dashboard', label: 'Дашборд' }, { id: 'clients', label: 'Клиенты' }, { id: 'subscriptions', label: 'Подписки' }, { id: 'requests', label: 'Заявки на подключение' },

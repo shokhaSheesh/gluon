@@ -30,6 +30,7 @@ import BankClientDetail, { ClientDetail } from './pages/panel/merchant/BankClien
 import AdminCompanies from './pages/panel/AdminCompanies';
 import AdminPartners from './pages/panel/AdminPartners';
 import AdminServices from './pages/panel/AdminServices';
+import { AdminOperations, AdminPayments, AdminSubscriptions } from './pages/panel/AdminFinance';
 import BankDashboard from './pages/panel/merchant/BankDashboard';
 import BankServices from './pages/panel/merchant/BankServices';
 import AdminBanks from './pages/panel/AdminBanks';
@@ -119,6 +120,9 @@ export default function App() {
             <Route index element={<PanelDashboard />} />
             <Route path="companies" element={<AdminCompanies />} />
             <Route path="companies/:id" element={<ClientDetail admin />} />
+            <Route path="subscriptions" element={<AdminSubscriptions />} />
+            <Route path="payments" element={<AdminPayments />} />
+            <Route path="operations" element={<AdminOperations />} />
             <Route path="partners" element={<AdminPartners />} />
             <Route path="services" element={<AdminServices />} />
             <Route path="chat" element={<PanelChat />} />

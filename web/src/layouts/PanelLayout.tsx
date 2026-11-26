@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { CalendarCheck, Handshake, Landmark, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
+import { ArrowLeftRight, CalendarCheck, Handshake, Landmark, Repeat, Tags, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
 import { Badge, ConfirmModal, Field, Input, LangSelect, Logo, Modal, PasswordInput, PhoneInput, ThemeToggle } from '../components/ui';
 import { useApp, type Platform } from '../lib/store';
 import { chatContactIds, currentActor, orgOf, useMerchant, type Employee } from '../lib/merchant';
@@ -25,32 +25,49 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
   type Link = { to: string; label: string; icon: React.ReactNode; end?: boolean; badge?: number };
   const m = '/merchant';
   // Each cabinet gets only the sections that match its data (see task list).
-  const links: Link[] = platform === 'admin' ? [
-    { to: base, end: true, label: t('dashboard'), icon: <LayoutGrid size={20} /> },
-    { to: `${base}/companies`, label: t('companies'), icon: <Building2 size={20} /> },
-    { to: `${base}/partners`, label: 'Партнёры', icon: <Handshake size={20} /> },
-    { to: `${base}/services`, label: 'Сервисы и баннеры', icon: <Blocks size={20} /> },
-    { to: `${base}/pricing`, label: 'Тарифы и цены', icon: <CreditCard size={20} /> },
-    { to: `${base}/banks`, label: 'Банки', icon: <Landmark size={20} /> },
-    { to: `${base}/chat`, label: t('chat'), icon: <MessagesSquare size={20} />, badge: unreadChats },
-    { to: `${base}/team`, label: 'Сотрудники и роли', icon: <UserCog size={20} /> },
-    { to: `${base}/audit`, label: 'Журнал действий', icon: <History size={20} /> },
+  // grouped by importance; section titles are hidden when the sidebar is collapsed
+  type Section = { title?: string; links: Link[] };
+  const L = {
+    dash: (to: string): Link => ({ to, end: true, label: t('dashboard'), icon: <LayoutGrid size={20} /> }),
+    chat: (to: string): Link => ({ to: `${to}/chat`, label: t('chat'), icon: <MessagesSquare size={20} />, badge: unreadChats }),
+    team: (to: string): Link => ({ to: `${to}/team`, label: 'Сотрудники и роли', icon: <UserCog size={20} /> }),
+    audit: (to: string): Link => ({ to: `${to}/audit`, label: 'Журнал действий', icon: <History size={20} /> }),
+  };
+  const sections: Section[] = platform === 'admin' ? [
+    { links: [L.dash(base)] },
+    { title: 'Клиенты', links: [
+      { to: `${base}/companies`, label: t('companies'), icon: <Building2 size={20} /> },
+      { to: `${base}/subscriptions`, label: 'Подписки', icon: <Repeat size={20} /> },
+    ] },
+    { title: 'Финансы', links: [
+      { to: `${base}/payments`, label: 'Платежи', icon: <CreditCard size={20} /> },
+      { to: `${base}/operations`, label: 'Операции', icon: <ArrowLeftRight size={20} /> },
+      { to: `${base}/pricing`, label: 'Тарифы и цены', icon: <Tags size={20} /> },
+    ] },
+    { title: 'Партнёры', links: [
+      { to: `${base}/partners`, label: 'Партнёры', icon: <Handshake size={20} /> },
+      { to: `${base}/services`, label: 'Сервисы и баннеры', icon: <Blocks size={20} /> },
+      { to: `${base}/banks`, label: 'Банки', icon: <Landmark size={20} /> },
+    ] },
+    { title: 'Поддержка', links: [L.chat(base)] },
+    { title: 'Настройки', links: [L.team(base), L.audit(base)] },
   ] : session?.kind === 'bank' ? [
-    { to: m, end: true, label: t('dashboard'), icon: <LayoutGrid size={20} /> },
-    { to: `${m}/clients`, label: 'Клиенты', icon: <Users size={20} /> },
-    { to: `${m}/services`, label: 'Сервисы для клиентов', icon: <Blocks size={20} /> },
-    { to: `${m}/branding`, label: 'Брендинг', icon: <Palette size={20} /> },
-    { to: `${m}/chat`, label: t('chat'), icon: <MessagesSquare size={20} />, badge: unreadChats },
-    { to: `${m}/team`, label: 'Сотрудники и роли', icon: <UserCog size={20} /> },
-    { to: `${m}/audit`, label: 'Журнал действий', icon: <History size={20} /> },
+    { links: [L.dash(m)] },
+    { title: 'Клиенты', links: [
+      { to: `${m}/clients`, label: 'Клиенты', icon: <Users size={20} /> },
+      { to: `${m}/services`, label: 'Сервисы для клиентов', icon: <Blocks size={20} /> },
+    ] },
+    { title: 'Поддержка', links: [L.chat(m)] },
+    { title: 'Настройки', links: [{ to: `${m}/branding`, label: 'Брендинг', icon: <Palette size={20} /> }, L.team(m), L.audit(m)] },
   ] : [
-    { to: m, end: true, label: t('dashboard'), icon: <LayoutGrid size={20} /> },
-    { to: `${m}/clients`, label: 'Клиенты', icon: <Users size={20} /> },
-    { to: `${m}/subscriptions`, label: 'Подписки', icon: <CalendarCheck size={20} /> },
-    { to: `${m}/requests`, label: 'Заявки на подключение', icon: <Link2 size={20} />, badge: pendingConn },
-    { to: `${m}/chat`, label: t('chat'), icon: <MessagesSquare size={20} />, badge: unreadChats },
-    { to: `${m}/team`, label: 'Сотрудники и роли', icon: <UserCog size={20} /> },
-    { to: `${m}/audit`, label: 'Журнал действий', icon: <History size={20} /> },
+    { links: [L.dash(m)] },
+    { title: 'Клиенты', links: [
+      { to: `${m}/clients`, label: 'Клиенты', icon: <Users size={20} /> },
+      { to: `${m}/subscriptions`, label: 'Подписки', icon: <CalendarCheck size={20} /> },
+      { to: `${m}/requests`, label: 'Заявки на подключение', icon: <Link2 size={20} />, badge: pendingConn },
+    ] },
+    { title: 'Поддержка', links: [L.chat(m)] },
+    { title: 'Настройки', links: [L.team(m), L.audit(m)] },
   ];
 
   return (
@@ -58,12 +75,17 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
       <aside className="p-side">
         <div className="p-logo">{collapsed ? <LogoMark /> : <Logo light size={30} />}</div>
         <p className="p-role">{platform === 'admin' ? 'Gluon Админ' : session?.kind === 'bank' ? 'Кабинет банка' : 'Кабинет сервиса'}</p>
-        <nav className="col gap-4">
-          {links.map((l) => (
-            <NavLink key={l.to} to={l.to} end={l.end} title={collapsed ? l.label : undefined} className={({ isActive }) => clsx('p-link', isActive && 'active')}>
-              {l.icon}<span className="grow p-label">{l.label}</span>
-              {!!l.badge && <span className="p-badge">{l.badge}</span>}
-            </NavLink>
+        <nav className="p-nav">
+          {sections.map((sec, i) => (
+            <div key={sec.title ?? i} className="p-sec">
+              {sec.title && <p className="p-sec-title">{sec.title}</p>}
+              {sec.links.map((l) => (
+                <NavLink key={l.to} to={l.to} end={l.end} title={collapsed ? l.label : undefined} className={({ isActive }) => clsx('p-link', isActive && 'active')}>
+                  {l.icon}<span className="grow p-label">{l.label}</span>
+                  {!!l.badge && <span className="p-badge">{l.badge}</span>}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
         <button className="p-link" style={{ marginTop: 'auto' }} title={collapsed ? t('exit') : undefined} onClick={() => setConfirmOut(true)}><LogOut size={20} /> <span className="p-label">{t('exit')}</span></button>

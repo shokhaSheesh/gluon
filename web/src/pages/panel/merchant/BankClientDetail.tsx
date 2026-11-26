@@ -8,6 +8,7 @@ import { maskAccount } from '../../../data/operations';
 import { useApp } from '../../../lib/store';
 import { CredentialsModal, JOINED_LABEL } from './BankClients';
 import { genPassword } from './Team';
+import { AdminCompanyTabs } from '../AdminCompanyTabs';
 import './merchant.css';
 
 const PLAN_NAME: Record<string, string> = { base: 'Базовый', business: 'Бизнес', pro: 'Про', corp: 'Корпоративный' };
@@ -45,31 +46,8 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
   }
   const services = Object.entries(c.services).map(([sid, s]) => ({ svc: SERVICES.find((x) => x.id === sid), sid, ...s }));
 
-  return (
-    <div className="col gap-20">
-      <button className="btn-link t-sm row gap-4" style={{ alignSelf: 'flex-start' }} onClick={() => nav(listPath)}><ArrowLeft size={14} /> {admin ? 'Все компании' : 'Все клиенты'}</button>
-
-      <div className="card cd-head">
-        <span className="cd-avatar">{initials(c.company)}</span>
-        <div className="grow col gap-6" style={{ minWidth: 0 }}>
-          <div className="row gap-8 wrap">
-            <h1 className="h4">{c.company}</h1>
-            {c.blocked ? <Badge kind="error">Заблокирована</Badge> : <Badge kind="success">Активна</Badge>}
-            {admin && <Badge kind={c.channel === 'gluon' ? 'primary' : 'neutral'}>{CHANNEL_LABEL[c.channel]}</Badge>}
-            {c.channel !== 'gluon' && (c.joined === 'bank' ? <Badge kind="primary">{JOINED_LABEL.bank}</Badge> : <Badge kind="neutral">{JOINED_LABEL.self}</Badge>)}
-          </div>
-          <p className="muted t-sm row gap-6 wrap">{c.owner} · <a className="mc-phone" href={`tel:+998${c.phone}`}><Phone size={13} /> {formatPhone(c.phone)}</a></p>
-        </div>
-        <div className="row gap-8 wrap">
-          <button className="btn btn-secondary" onClick={() => nav(`${base}/chat`)}><MessageSquare size={16} /> Написать в чат</button>
-          <button className="btn btn-secondary" onClick={() => setEdit(true)}><Pencil size={16} /> Изменить</button>
-          {c.blocked
-            ? <button className="btn btn-secondary" onClick={() => { m.updateClient(c.id, { blocked: false, block: undefined }); log('Разблокировал компанию'); toast('success', 'Компания разблокирована'); }}><ShieldCheck size={16} /> Разблокировать</button>
-            : <button className="btn btn-secondary" style={{ color: 'var(--error)' }} onClick={() => setBlock(true)}><Ban size={16} /> Заблокировать</button>}
-        </div>
-      </div>
-      {c.blocked && <BlockBanner client={c} />}
-
+  const overview = (
+    <>
       <div className="bc-grid">
         <section className="card db-card">
           <h3 className="medium">Данные компании</h3>
@@ -144,6 +122,36 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
           </table>
         </div>
       </section>
+
+    </>
+  );
+
+  return (
+    <div className="col gap-20">
+      <button className="btn-link t-sm row gap-4" style={{ alignSelf: 'flex-start' }} onClick={() => nav(listPath)}><ArrowLeft size={14} /> {admin ? 'Все компании' : 'Все клиенты'}</button>
+
+      <div className="card cd-head">
+        <span className="cd-avatar">{initials(c.company)}</span>
+        <div className="grow col gap-6" style={{ minWidth: 0 }}>
+          <div className="row gap-8 wrap">
+            <h1 className="h4">{c.company}</h1>
+            {c.blocked ? <Badge kind="error">Заблокирована</Badge> : <Badge kind="success">Активна</Badge>}
+            {admin && <Badge kind={c.channel === 'gluon' ? 'primary' : 'neutral'}>{CHANNEL_LABEL[c.channel]}</Badge>}
+            {c.channel !== 'gluon' && (c.joined === 'bank' ? <Badge kind="primary">{JOINED_LABEL.bank}</Badge> : <Badge kind="neutral">{JOINED_LABEL.self}</Badge>)}
+          </div>
+          <p className="muted t-sm row gap-6 wrap">{c.owner} · <a className="mc-phone" href={`tel:+998${c.phone}`}><Phone size={13} /> {formatPhone(c.phone)}</a></p>
+        </div>
+        <div className="row gap-8 wrap">
+          <button className="btn btn-secondary" onClick={() => nav(`${base}/chat`)}><MessageSquare size={16} /> Написать в чат</button>
+          <button className="btn btn-secondary" onClick={() => setEdit(true)}><Pencil size={16} /> Изменить</button>
+          {c.blocked
+            ? <button className="btn btn-secondary" onClick={() => { m.updateClient(c.id, { blocked: false, block: undefined }); log('Разблокировал компанию'); toast('success', 'Компания разблокирована'); }}><ShieldCheck size={16} /> Разблокировать</button>
+            : <button className="btn btn-secondary" style={{ color: 'var(--error)' }} onClick={() => setBlock(true)}><Ban size={16} /> Заблокировать</button>}
+        </div>
+      </div>
+      {c.blocked && <BlockBanner client={c} />}
+
+      {admin ? <AdminCompanyTabs c={c} overview={overview} /> : overview}
 
       <Modal open={edit} onClose={() => setEdit(false)} title="Изменить клиента" width={520}>
         {edit && <EditClientForm client={c} onClose={() => setEdit(false)} onSave={(patch, changed) => {
