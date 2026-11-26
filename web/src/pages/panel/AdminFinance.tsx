@@ -22,93 +22,78 @@ const Search_ = ({ q, setQ, placeholder }: { q: string; setQ: (v: string) => voi
 );
 
 /* ---------------- Подписки (тарифы Gluon) ---------------- */
+/** Every plan subscription a company bought (one paid period each) — current and past in one list. */
 export function AdminSubscriptions() {
   const { toast } = useApp();
   const nav = useNavigate();
   const ledgers = useLedgers();
-  const [tab, setTab] = useState<'current' | 'history'>('current');
   const [plan, setPlan] = useState('all');
+  const [status, setStatus] = useState<'all' | 'active' | 'ended'>('all');
   const [period, setPeriod] = useState<Period>({ key: 'all' });
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const reset = () => setPage(1);
-  const current = useMemo(() => ledgers.map(({ c, l }) => ({ c, s: l.subs.find((x) => x.status === 'active'), l })).filter((x) => !!x.s) as { c: (typeof ledgers)[number]['c']; s: import('../../lib/ledger').Subscription; l: (typeof ledgers)[number]['l'] }[], [ledgers]);
-  const history = useMemo(() => ledgers.flatMap(({ c, l }) => l.planPayments.map((p) => ({ c, p }))).sort((a, b) => parseDate(b.p.date).getTime() - parseDate(a.p.date).getTime()), [ledgers]);
-  const plans = [...new Map(current.map(({ s }) => [s.planId, s.plan])).entries()];
+  const today = new Date(2026, 10, 25);
+  const all = useMemo(() => ledgers.flatMap(({ c, l }) => l.planPayments.map((p) => ({ c, p, active: parseDate(p.to) > today })))
+    .sort((a, b) => parseDate(b.p.date).getTime() - parseDate(a.p.date).getTime()), [ledgers]); // eslint-disable-line react-hooks/exhaustive-deps
   const r = rangeOf(period);
-  const curRows = current.filter(({ c, s }) => (plan === 'all' || s.planId === plan) && c.company.toLowerCase().includes(q.toLowerCase()));
-  const histRows = history.filter(({ c, p }) => (plan === 'all' || p.planId === plan) && inRange(parseDate(p.date), r) && c.company.toLowerCase().includes(q.toLowerCase()));
-  const paid = current.filter(({ s }) => s.price > 0);
-  const total = Math.ceil((tab === 'current' ? curRows.length : histRows.length) / PER);
+  const inP = all.filter(({ c, p }) => (plan === 'all' || p.planId === plan) && inRange(parseDate(p.date), r) && c.company.toLowerCase().includes(q.toLowerCase()));
+  const rows = inP.filter(({ active }) => status === 'all' || (status === 'active' ? active : !active));
+  const view = rows.slice((page - 1) * PER, page * PER);
+  const plans = [...new Map(all.map(({ p }) => [p.planId, p.plan])).entries()];
+  const current = all.filter((x) => x.active);
+  const onFree = ledgers.filter(({ l }) => !l.subs.find((x) => x.status === 'active')?.price).length;
 
   return (
     <div className="col gap-16">
       <div className="row between wrap gap-12">
         <h1 className="h4">Подписки</h1>
         <div className="row gap-12 wrap">
-          {tab === 'history' && <PeriodFilter value={period} onChange={(p) => { setPeriod(p); reset(); }} />}
+          <PeriodFilter value={period} onChange={(p) => { setPeriod(p); reset(); }} />
           <button className="btn btn-secondary" onClick={() => {
-            if (tab === 'current') downloadXlsx('gluon-subscriptions.xlsx', 'Подписки', ['Компания', 'ИНН', 'Тариф', 'С', 'Оплачено до', 'Цена / мес', 'Оплачено мес.', 'Всего оплачено', 'Автопродление'],
-              curRows.map(({ c, s }) => [c.company, c.inn, s.plan, s.since, s.paidUntil, s.price, s.months, s.totalPaid, s.price ? (s.autoRenew ? 'Да' : 'Нет') : '—']));
-            else downloadXlsx('gluon-subscription-payments.xlsx', 'Оплаты тарифов', ['Дата', 'Компания', 'ИНН', 'Тариф', 'Период с', 'Период по', 'Сумма'],
-              histRows.map(({ c, p }) => [p.date, c.company, c.inn, p.plan, p.from, p.to, p.amount]));
-            toast('success', 'Выгружено в Excel');
+            downloadXlsx('gluon-subscriptions.xlsx', 'Подписки', ['Дата оплаты', 'Компания', 'ИНН', 'Тариф', 'Период с', 'Период по', 'Сумма', 'Статус'],
+              rows.map(({ c, p, active }) => [p.date, c.company, c.inn, p.plan, p.from, p.to, p.amount, active ? 'Активна' : 'Завершена']));
+            toast('success', `Выгружено подписок: ${rows.length}`);
           }}><Download size={16} /> Экспорт в Excel</button>
         </div>
       </div>
       <div className="p-stats">
-        <Stat icon={<Repeat size={22} />} color="linear-gradient(135deg,#2f4d4d,#5b8a8a)" value={paid.length} label="Платные подписки" />
-        <Stat icon={<Layers size={22} />} color="linear-gradient(135deg,#7a5af8,#a48afb)" value={current.length - paid.length} label="На бесплатном тарифе" />
-        <Stat icon={<Wallet size={22} />} color="linear-gradient(135deg,#079455,#47cd89)" value={sum(paid.reduce((a, { s }) => a + s.price, 0))} label="В месяц" />
-        <Stat icon={<Receipt size={22} />} color="linear-gradient(135deg,#1570ef,#53b1fd)" value={current.filter(({ l }) => l.subs.length > 1).length} label="Меняли тариф" />
+        <Stat icon={<Repeat size={22} />} color="linear-gradient(135deg,#2f4d4d,#5b8a8a)" value={current.length} label="Активные подписки" />
+        <Stat icon={<Layers size={22} />} color="linear-gradient(135deg,#7a5af8,#a48afb)" value={onFree} label="На бесплатном тарифе" />
+        <Stat icon={<Wallet size={22} />} color="linear-gradient(135deg,#079455,#47cd89)" value={sum(current.reduce((a, { p }) => a + p.amount, 0))} label="В месяц" />
+        <Stat icon={<Receipt size={22} />} color="linear-gradient(135deg,#1570ef,#53b1fd)" value={sum(inP.reduce((a, { p }) => a + p.amount, 0))} label="Оплачено за период" />
       </div>
       <div className="mc-filters">
-        <div className="tabs-seg">
-          <button className={clsx(tab === 'current' && 'active')} onClick={() => { setTab('current'); reset(); }}>Текущие <span className="op-tabcount">{current.length}</span></button>
-          <button className={clsx(tab === 'history' && 'active')} onClick={() => { setTab('history'); reset(); }}>История оплат <span className="op-tabcount">{history.length}</span></button>
-        </div>
         <Search_ q={q} setQ={(v) => { setQ(v); reset(); }} placeholder="Компания" />
+        <div className="tabs-seg">
+          {(['all', 'active', 'ended'] as const).map((k) => (
+            <button key={k} className={clsx(status === k && 'active')} onClick={() => { setStatus(k); reset(); }}>
+              {{ all: 'Все', active: 'Активные', ended: 'Завершённые' }[k]} <span className="op-tabcount">{k === 'all' ? inP.length : inP.filter((x) => (k === 'active' ? x.active : !x.active)).length}</span>
+            </button>
+          ))}
+        </div>
         <div style={{ width: 200 }}><Select value={plan} onChange={(v) => { setPlan(v); reset(); }} options={[{ value: 'all', label: 'Все тарифы' }, ...plans.map(([id, name]) => ({ value: id, label: name }))]} /></div>
       </div>
       <div className="card" style={{ overflow: 'hidden' }}>
         <div className="table-wrap">
-          {tab === 'current' ? (
-            <table className="table">
-              <thead><tr><th>Компания</th><th>Тариф</th><th>С</th><th>Оплачено до</th><th>Цена</th><th>Всего оплачено</th><th>Автопродление</th></tr></thead>
-              <tbody>
-                {curRows.slice((page - 1) * PER, page * PER).map(({ c, s, l }) => (
-                  <tr key={c.id} className="clickable" onClick={() => nav(`/admin/companies/${c.id}`)}>
-                    <td><Company name={c.company} sub={c.owner} /></td>
-                    <td><span className="col"><PlanMark name={s.plan} />{l.subs.length > 1 && <span className="t-xs muted">до этого: {l.subs.slice(1).map((x) => x.plan).join(', ')}</span>}</span></td>
-                    <td>{s.since}</td>
-                    <td>{s.paidUntil}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{s.price ? `${sum(s.price)} / мес` : 'Бесплатно'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{sum(l.subs.reduce((a, x) => a + x.totalPaid, 0))}</td>
-                    <td>{s.price ? (s.autoRenew ? 'Включено' : <span style={{ color: 'var(--warning)' }}>Выключено</span>) : '—'}</td>
-                  </tr>
-                ))}
-                {!curRows.length && <tr><td colSpan={7}><div className="empty-state">Подписок нет</div></td></tr>}
-              </tbody>
-            </table>
-          ) : (
-            <table className="table">
-              <thead><tr><th>Дата оплаты</th><th>Компания</th><th>Тариф</th><th>Период</th><th style={{ textAlign: 'right' }}>Сумма</th></tr></thead>
-              <tbody>
-                {histRows.slice((page - 1) * PER, page * PER).map(({ c, p }) => (
-                  <tr key={p.id} className="clickable" onClick={() => nav(`/admin/companies/${c.id}`)}>
-                    <td>{p.date}</td>
-                    <td><Company name={c.company} sub={c.owner} /></td>
-                    <td><PlanMark name={p.plan} /></td>
-                    <td>с {p.from} по {p.to}</td>
-                    <td className="strong" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{sum(p.amount)}</td>
-                  </tr>
-                ))}
-                {!histRows.length && <tr><td colSpan={5}><div className="empty-state">Оплат нет</div></td></tr>}
-              </tbody>
-            </table>
-          )}
+          <table className="table">
+            <thead><tr><th>Дата оплаты</th><th>Компания</th><th>Тариф</th><th>Период</th><th style={{ textAlign: 'right' }}>Сумма</th><th>Статус</th></tr></thead>
+            <tbody>
+              {view.map(({ c, p, active }) => (
+                <tr key={p.id} className="clickable" onClick={() => nav(`/admin/companies/${c.id}`)}>
+                  <td>{p.date}</td>
+                  <td><Company name={c.company} sub={c.owner} /></td>
+                  <td><PlanMark name={p.plan} /></td>
+                  <td>с {p.from} по {p.to}</td>
+                  <td className="strong" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{sum(p.amount)}</td>
+                  <td>{active ? <Badge kind="success">Активна</Badge> : <Badge kind="neutral">Завершена</Badge>}</td>
+                </tr>
+              ))}
+              {!view.length && <tr><td colSpan={6}><div className="empty-state">Подписок нет</div></td></tr>}
+            </tbody>
+          </table>
         </div>
-        {total > 1 && <Pagination page={page} total={total} onPage={setPage} />}
+        {rows.length > PER && <Pagination page={page} total={Math.ceil(rows.length / PER)} onPage={setPage} />}
       </div>
     </div>
   );
