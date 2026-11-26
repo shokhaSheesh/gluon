@@ -44,7 +44,7 @@ export default function BankClientDetail() {
         <div className="grow col gap-6" style={{ minWidth: 0 }}>
           <div className="row gap-8 wrap">
             <h1 className="h4">{c.company}</h1>
-            {c.blocked ? <Badge kind="error">Заблокирован</Badge> : <Badge kind="success">Активен</Badge>}
+            {c.blocked ? <Badge kind="error">Заблокирована</Badge> : <Badge kind="success">Активна</Badge>}
             {c.joined === 'bank' ? <Badge kind="primary">{JOINED_LABEL.bank}</Badge> : <Badge kind="neutral">{JOINED_LABEL.self}</Badge>}
           </div>
           <p className="muted t-sm row gap-6 wrap">{c.owner} · <a className="mc-phone" href={`tel:+998${c.phone}`}><Phone size={13} /> {formatPhone(c.phone)}</a></p>
@@ -52,8 +52,16 @@ export default function BankClientDetail() {
         <div className="row gap-8 wrap">
           <button className="btn btn-secondary" onClick={() => nav('/merchant/chat')}><MessageSquare size={16} /> Написать в чат</button>
           <button className="btn btn-secondary" onClick={() => setEdit(true)}><Pencil size={16} /> Изменить</button>
+          {c.blocked
+            ? <button className="btn btn-secondary" onClick={() => { m.updateClient(c.id, { blocked: false }); log('Разблокировал компанию'); toast('success', 'Компания разблокирована'); }}><ShieldCheck size={16} /> Разблокировать</button>
+            : <button className="btn btn-secondary" style={{ color: 'var(--error)' }} onClick={() => setBlock(true)}><Ban size={16} /> Заблокировать</button>}
         </div>
       </div>
+      {c.blocked && (
+        <div className="bl-alert" style={{ marginTop: 0, background: 'var(--error-soft)', borderColor: 'var(--error-border, var(--error))', color: 'var(--error)' }}>
+          <Ban size={18} /><span className="grow">Компания заблокирована: владелец и сотрудники не могут войти в Gluon.</span>
+        </div>
+      )}
 
       <div className="bc-grid">
         <section className="card db-card">
@@ -69,11 +77,10 @@ export default function BankClientDetail() {
         </section>
 
         <section className="card db-card">
-          <h3 className="medium">Доступ в Gluon</h3>
+          <h3 className="medium">Вход владельца</h3>
           <dl className="kv mt-12">
             <dt>Логин</dt><dd>{formatPhone(c.credentials?.login ?? c.phone)}</dd>
             <dt>Пароль</dt><dd>••••••••</dd>
-            <dt>Статус</dt><dd>{c.blocked ? <span style={{ color: 'var(--error)' }}>Заблокирован — вход закрыт</span> : 'Активен'}</dd>
           </dl>
           <div className="row gap-8 wrap mt-16">
             <button className="btn btn-secondary btn-sm" onClick={() => {
@@ -82,9 +89,6 @@ export default function BankClientDetail() {
               log('Сбросил пароль клиента');
               setIssued({ company: c.company, login: c.phone, password });
             }}><KeyRound size={14} /> Сбросить пароль</button>
-            {c.blocked
-              ? <button className="btn btn-secondary btn-sm" onClick={() => { m.updateClient(c.id, { blocked: false }); log('Разблокировал клиента'); toast('success', 'Клиент разблокирован'); }}><ShieldCheck size={14} /> Разблокировать</button>
-              : <button className="btn btn-secondary btn-sm" style={{ color: 'var(--error)' }} onClick={() => setBlock(true)}><Ban size={14} /> Заблокировать</button>}
           </div>
         </section>
       </div>
@@ -141,8 +145,8 @@ export default function BankClientDetail() {
           setEdit(false);
         }} />}
       </Modal>
-      <ConfirmModal open={block} onClose={() => setBlock(false)} confirmText="Заблокировать" text={`Заблокировать ${c.company}? Клиент не сможет войти в Gluon.`}
-        onConfirm={() => { m.updateClient(c.id, { blocked: true }); log('Заблокировал клиента'); setBlock(false); toast('success', 'Клиент заблокирован'); }} />
+      <ConfirmModal open={block} onClose={() => setBlock(false)} confirmText="Заблокировать" text={`Заблокировать ${c.company}? Владелец и сотрудники компании не смогут войти в Gluon.`}
+        onConfirm={() => { m.updateClient(c.id, { blocked: true }); log('Заблокировал компанию'); setBlock(false); toast('success', 'Компания заблокирована'); }} />
       <CredentialsModal data={issued} onClose={() => setIssued(null)} />
       <Modal open={openAcc} onClose={() => setOpenAcc(false)} title="Открыть расчётный счёт" width={460}>
         {openAcc && <OpenAccountForm bank={bank} taken={m.clients.flatMap((x) => (x.accounts ?? []).map((a) => a.number))} onClose={() => setOpenAcc(false)} onSave={(a) => {

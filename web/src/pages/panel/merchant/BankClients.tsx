@@ -49,7 +49,7 @@ export default function BankClients() {
         <div className="row gap-12">
           <button className="btn btn-secondary" onClick={() => {
             downloadXlsx(`${bank}-clients.xlsx`, 'Клиенты', ['Компания', 'ИНН', 'Владелец', 'Телефон', 'Категория', 'Адрес', 'Как пришёл', 'Счетов', 'Сервисов', 'Дата регистрации', 'Последний вход', 'Статус'],
-              rows.map((c) => [c.company, c.inn, c.owner, formatPhone(c.phone), c.category, c.address, JOINED_LABEL[c.joined], (c.accounts ?? []).filter((a) => a.status === 'active').length, Object.keys(c.services).length, c.registered, c.lastActive ?? 'Не входил', c.blocked ? 'Заблокирован' : 'Активен']));
+              rows.map((c) => [c.company, c.inn, c.owner, formatPhone(c.phone), c.category, c.address, JOINED_LABEL[c.joined], (c.accounts ?? []).filter((a) => a.status === 'active').length, Object.keys(c.services).length, c.registered, c.lastActive ?? 'Не входил', c.blocked ? 'Заблокирована' : 'Активна']));
             toast('success', `Выгружено клиентов: ${rows.length}`);
           }}><Download size={16} /> Экспорт в Excel</button>
           <button className="btn btn-primary" onClick={() => setCreate(true)}><UserPlus size={16} /> Создать клиента</button>
@@ -91,7 +91,7 @@ export default function BankClients() {
                 <tr key={c.id} className="clickable" onClick={() => nav(c.id)}>
                   <td>
                     <span className="col">
-                      <span className="row gap-6"><span className="strong" style={{ color: 'var(--text)' }}>{c.company}</span>{c.blocked && <Badge kind="error">Заблокирован</Badge>}</span>
+                      <span className="row gap-6"><span className="strong" style={{ color: 'var(--text)' }}>{c.company}</span>{c.blocked && <Badge kind="error">Заблокирована</Badge>}</span>
                       <span className="t-xs muted">{c.owner}</span>
                     </span>
                   </td>

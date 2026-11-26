@@ -40,7 +40,7 @@ export default function Login() {
     const secret = demo?.password ?? client?.credentials?.password;
     if (!loginValue) er.login = isUser ? 'Введите номер телефона' : 'Введите логин';
     else if (!demo && !client) er.login = isUser ? 'Пользователь с таким номером не существует' : 'Пользователь с таким логином не существует';
-    else if (client?.blocked) er.login = `Аккаунт заблокирован. Обратитесь в ${CHANNEL_LABEL[client.channel]}`;
+    else if (client?.blocked) er.login = `Компания заблокирована. Обратитесь в ${CHANNEL_LABEL[client.channel]}`;
     if (!password) er.password = 'Введите пароль';
     else if (secret && secret !== password) er.password = 'Пароль введён неправильно';
     setErrors(er);
