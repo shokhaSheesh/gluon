@@ -6,7 +6,7 @@ import { maskAccount } from '../../data/operations';
 import { sum } from '../../lib/billing';
 import { PAY_LABEL, fmtSum, useLedgers, type ProviderPayment } from '../../lib/ledger';
 import type { Client } from '../../lib/merchant';
-import { ItemMark, OpsTable, ResponseModal } from './AdminFinance';
+import { OpsTable, PlanMark, ResponseModal } from './AdminFinance';
 import { Stat } from './AdminCompanies';
 import './merchant/merchant.css';
 
@@ -19,10 +19,10 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
   const [tab, setTab] = useState<Tab>('overview');
   const [resp, setResp] = useState<ProviderPayment | null>(null);
   if (!l) return <>{overview}</>;
-  const activeSubs = l.subs.filter((s) => s.status === 'active' && (s.kind === 'service' || s.price > 0));
+  const cur = l.subs.find((s) => s.status === 'active');
   const pctUsed = Math.round((l.storage.usedGb / l.storage.totalGb) * 100);
   const tabs: [Tab, string, number?][] = [
-    ['overview', 'Обзор'], ['subs', 'Подписки', l.subs.length], ['ops', 'Операции', l.ops.length], ['payments', 'Платежи', l.payments.length],
+    ['overview', 'Обзор'], ['subs', 'Подписка', l.planPayments.length], ['ops', 'Операции', l.ops.length], ['payments', 'Платежи', l.payments.length],
     ['bank', 'Банковские операции', l.bankOps.length], ['storage', 'Хранилище'], ['staff', 'Сотрудники', l.employees.length],
   ];
 
@@ -30,7 +30,7 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
     <>
       <div className="p-stats">
         <Stat icon={<Wallet size={22} />} color="linear-gradient(135deg,#2f4d4d,#5b8a8a)" value={sum(l.balance)} label="Баланс Gluon" />
-        <Stat icon={<Repeat size={22} />} color="linear-gradient(135deg,#1570ef,#53b1fd)" value={activeSubs.length} label="Активные подписки" />
+        <Stat icon={<Repeat size={22} />} color="linear-gradient(135deg,#1570ef,#53b1fd)" value={cur?.plan ?? '—'} label="Тариф" />
         <Stat icon={<HardDrive size={22} />} color="linear-gradient(135deg,#7a5af8,#a48afb)" value={`${l.storage.usedGb} / ${l.storage.totalGb} GB`} label="Хранилище" />
         <Stat icon={<Users size={22} />} color="linear-gradient(135deg,#079455,#47cd89)" value={l.employees.length} label="Сотрудники" />
       </div>
@@ -41,27 +41,66 @@ export function AdminCompanyTabs({ c, overview }: { c: Client; overview: ReactNo
 
       {tab === 'overview' && overview}
 
-      {tab === 'subs' && (
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <div className="table-wrap">
-            <table className="table">
-              <thead><tr><th>Подписка</th><th>С</th><th>Оплачено до</th><th>Цена</th><th>Всего оплачено</th><th>Автопродление</th><th>Статус</th></tr></thead>
-              <tbody>
-                {l.subs.map((s) => (
-                  <tr key={s.id}>
-                    <td><ItemMark kind={s.kind} id={s.itemId} name={s.item} /></td>
-                    <td>{s.since}</td>
-                    <td>{s.paidUntil}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{s.price ? `${sum(s.price)} / мес` : 'Бесплатно'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{sum(s.totalPaid)}<span className="t-xs muted"> · {s.months} мес.</span></td>
-                    <td>{s.price ? (s.autoRenew ? 'Включено' : 'Выключено') : '—'}</td>
-                    <td>{s.status === 'active' ? <Badge kind="success">Активна</Badge> : <Badge kind="error">Не продлена</Badge>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {tab === 'subs' && cur && (
+        <>
+          <section className="card db-card">
+            <div className="row between wrap gap-12">
+              <div className="col gap-4">
+                <span className="t-xs muted">Текущая подписка</span>
+                <span className="row gap-8"><PlanMark name={`Тариф «${cur.plan}»`} /><Badge kind="success">Активна</Badge></span>
+              </div>
+              <div className="cs-facts">
+                <div><span className="t-xs muted">Цена</span><b>{cur.price ? `${sum(cur.price)} / мес` : 'Бесплатно'}</b></div>
+                <div><span className="t-xs muted">С</span><b>{cur.since}</b></div>
+                <div><span className="t-xs muted">Оплачено до</span><b>{cur.paidUntil}</b></div>
+                <div><span className="t-xs muted">Автопродление</span><b>{cur.price ? (cur.autoRenew ? 'Включено' : 'Выключено') : '—'}</b></div>
+                <div><span className="t-xs muted">Всего оплачено</span><b>{sum(l.subs.reduce((a, x) => a + x.totalPaid, 0))}</b></div>
+              </div>
+            </div>
+          </section>
+
+          {l.subs.length > 1 && (
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px' }}><h3 className="medium">История тарифов</h3></div>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead><tr><th>Тариф</th><th>Период</th><th>Цена</th><th>Оплачено</th><th>Статус</th></tr></thead>
+                  <tbody>
+                    {l.subs.map((x) => (
+                      <tr key={x.id}>
+                        <td><PlanMark name={x.plan} /></td>
+                        <td>с {x.since}{x.status === 'replaced' ? ` по ${x.until}` : ''}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{x.price ? `${sum(x.price)} / мес` : 'Бесплатно'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{sum(x.totalPaid)}<span className="t-xs muted"> · {x.months} мес.</span></td>
+                        <td>{x.status === 'active' ? <Badge kind="success">Текущий</Badge> : <Badge kind="neutral">Сменён</Badge>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px' }}><h3 className="medium">Оплаты тарифа</h3></div>
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Дата оплаты</th><th>Тариф</th><th>Период</th><th style={{ textAlign: 'right' }}>Сумма</th></tr></thead>
+                <tbody>
+                  {l.planPayments.map((p) => (
+                    <tr key={p.id}>
+                      <td>{p.date}</td>
+                      <td><PlanMark name={p.plan} /></td>
+                      <td>с {p.from} по {p.to}</td>
+                      <td className="strong" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{sum(p.amount)}</td>
+                    </tr>
+                  ))}
+                  {!l.planPayments.length && <tr><td colSpan={4}><div className="empty-state">Компания на бесплатном тарифе — оплат не было</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {tab === 'ops' && <OpsTable rows={l.ops.map((o) => ({ c, o }))} hideCompany />}

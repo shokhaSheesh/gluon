@@ -12,3 +12,12 @@
 .bk-logo .wordmark img { max-width: 100%; }
 .bk-terms { grid-template-columns: 1fr auto; }
 .bk-terms dt { white-space: nowrap; }
+/* roomier bank cards: max 4 per row, terms as separated rows, button pinned to the bottom */
+.bk-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.bk-card { padding: 20px; gap: 16px; }
+.bk-card > .btn:last-child { margin-top: auto; }
+.bk-terms { display: flex; flex-direction: column; gap: 0; }
+.bk-terms > span { display: flex !important; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+.bk-terms > span:last-child { border-bottom: none; }
+.bk-terms dd { white-space: normal; text-align: right; }
+.bk-perk { flex: none; padding: 8px 12px; line-height: 1.4; }

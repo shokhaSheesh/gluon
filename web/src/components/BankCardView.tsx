@@ -19,7 +19,7 @@ export function BankCardView({ b, action }: { b: BankCard; action?: ReactNode })
       </div>
       {b.terms.length > 0 && (
         <dl className="bk-terms">
-          {b.terms.map((t, i) => <span key={i} style={{ display: 'contents' }}><dt>{t.label || '—'}</dt><dd>{t.value || '—'}</dd></span>)}
+          {b.terms.map((t, i) => <span key={i}><dt>{t.label || '—'}</dt><dd>{t.value || '—'}</dd></span>)}
         </dl>
       )}
       {b.perk && <p className="bk-perk"><BadgeCheck size={14} /> {b.perk}</p>}

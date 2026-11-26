@@ -15,12 +15,14 @@ export type OpKind = 'topup' | 'service' | 'plan' | 'storage' | 'refund';
 export interface LedgerOp { id: string; date: string; time: string; kind: OpKind; title: string; amount: number; balance: number; ref?: string }
 export type PayStatus = 'success' | 'failed' | 'refunded';
 export interface ProviderPayment { id: string; date: string; time: string; method: string; card: string; amount: number; fee: number; status: PayStatus; error?: string }
-export type SubKind = 'plan' | 'service';
-export interface Subscription { id: string; kind: SubKind; item: string; itemId: string; since: string; paidUntil: string; price: number; months: number; totalPaid: number; autoRenew: boolean; status: 'active' | 'expired' }
+/** A Gluon plan subscription (tariff). A company has one current plan; earlier plans stay in history. */
+export interface Subscription { id: string; planId: string; plan: string; since: string; until: string; paidUntil: string; price: number; months: number; totalPaid: number; autoRenew: boolean; status: 'active' | 'replaced' }
+/** One paid month of a plan. */
+export interface PlanPayment { id: string; date: string; planId: string; plan: string; from: string; to: string; amount: number }
 export interface Employee { name: string; role: string; phone: string; lastActive: string }
 export interface BankOp { id: string; date: string; counterparty: string; purpose: string; amount: number; account: string }
 export interface Storage { totalGb: number; usedGb: number; parts: { name: string; gb: number; color: string }[] }
-export interface CompanyLedger { subs: Subscription[]; ops: LedgerOp[]; payments: ProviderPayment[]; balance: number; storage: Storage; employees: Employee[]; bankOps: BankOp[] }
+export interface CompanyLedger { subs: Subscription[]; planPayments: PlanPayment[]; ops: LedgerOp[]; payments: ProviderPayment[]; balance: number; storage: Storage; employees: Employee[]; bankOps: BankOp[] }
 
 export const OP_LABEL: Record<OpKind, string> = { topup: 'Пополнение', service: 'Оплата сервиса', plan: 'Оплата тарифа', storage: 'Место в архиве', refund: 'Возврат' };
 export const PAY_LABEL: Record<PayStatus, { label: string; kind: 'success' | 'error' | 'neutral' }> = {
@@ -44,24 +46,41 @@ export function companyLedger(c: Client, prices: Record<string, ServicePrice>, p
   const debits: { date: Date; kind: OpKind; title: string; amount: number; ref?: string }[] = [];
   const subs: Subscription[] = [];
 
-  // plan: monthly from registration (free plan has no payments)
+  // plan history: some companies started on the free plan and upgraded, some tried a paid plan and went back
+  const planPayments: PlanPayment[] = [];
   if (plan) {
-    let d = parseDate(c.registered), n = 0;
-    while (d <= TODAY) { if (plan.price) debits.push({ date: d, kind: 'plan', title: `Тариф «${plan.name}» · 1 мес.`, amount: plan.price, ref: plan.id }); n++; d = addMonths(d, 1); }
-    subs.push({ id: `${c.id}-plan`, kind: 'plan', item: `Тариф «${plan.name}»`, itemId: plan.id, since: c.registered, paidUntil: plan.price ? fmtDate(d) : '—', price: plan.price, months: n, totalPaid: plan.price * n, autoRenew: true, status: 'active' });
+    const reg = parseDate(c.registered);
+    const base = plans.find((p) => p.id === 'base') ?? plan;
+    const trial = plans.find((p) => p.id === 'business') ?? plan;
+    const switchAt = addMonths(reg, 1 + (k % 4));
+    const segs: { p: Plan; from: Date }[] =
+      plan.id !== 'base' && k % 2 === 0 && switchAt < TODAY ? [{ p: base, from: reg }, { p: plan, from: switchAt }]
+      : plan.id === 'base' && k % 5 === 0 && addMonths(switchAt, 2) < TODAY ? [{ p: trial, from: reg }, { p: base, from: addMonths(reg, 2) }]
+      : [{ p: plan, from: reg }];
+    segs.forEach((sg, i) => {
+      const end = segs[i + 1]?.from;
+      let d = new Date(sg.from), n = 0;
+      while (d <= TODAY && (!end || d < end)) {
+        const next = addMonths(d, 1);
+        if (sg.p.price) {
+          debits.push({ date: d, kind: 'plan', title: `Тариф «${sg.p.name}» · 1 мес.`, amount: sg.p.price, ref: sg.p.id });
+          planPayments.push({ id: `${c.id}-pl${i}-${n}`, date: fmtDate(d), planId: sg.p.id, plan: sg.p.name, from: fmtDate(d), to: fmtDate(next), amount: sg.p.price });
+        }
+        n++; d = next;
+      }
+      subs.push({
+        id: `${c.id}-plan${i}`, planId: sg.p.id, plan: sg.p.name, since: fmtDate(sg.from), until: end ? fmtDate(end) : '—',
+        paidUntil: sg.p.price ? fmtDate(end ?? d) : '—', price: sg.p.price, months: n, totalPaid: sg.p.price * n,
+        autoRenew: !end && k % 4 !== 1, status: end ? 'replaced' : 'active',
+      });
+    });
   }
   // services: paid periods from the shared payment chain
   Object.entries(c.services).forEach(([sid, s]) => {
     const price = prices[sid]?.price ?? 0;
     const paid = servicePayments(c, sid, price).filter((p) => p.status === 'paid');
     paid.forEach((p) => debits.push({ date: parseDate(p.paidOn), kind: 'service', title: `${names[sid] ?? sid} · ${p.months} мес.`, amount: price * p.months, ref: sid }));
-    const last = paid[0];
-    const until = last ? fmtDate(addMonths(parseDate(last.date), last.months)) : '—';
-    subs.push({
-      id: `${c.id}-${sid}`, kind: 'service', item: names[sid] ?? sid, itemId: sid, since: s.since, paidUntil: until, price,
-      months: paid.reduce((a, p) => a + p.months, 0), totalPaid: paid.reduce((a, p) => a + p.amount, 0), autoRenew: s.status === 'active' && (k + sid.length) % 4 !== 0,
-      status: s.status === 'active' ? 'active' : 'expired',
-    });
+    void s;
   });
   // extra archive space once in a while
   if (k % 3 === 0) { const d = addMonths(parseDate(c.registered), 2 + (k % 4)); if (d <= TODAY) debits.push({ date: d, kind: 'storage', title: 'Доп. место в архиве · +100 GB', amount: 19_000 }); }
@@ -129,7 +148,8 @@ export function companyLedger(c: Client, prices: Record<string, ServicePrice>, p
         return { id: `${c.id}-b${j}`, date: fmtDate(new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - j * 2 - (k % 3))), counterparty: cp, purpose, amount: (income ? 1 : -1) * (500_000 + ((k * (j + 3) * 7_919) % 12_000_000)), account: accs[j % accs.length].number };
       }) : [];
 
-  return { subs, ops, payments, balance: bal, storage, employees, bankOps };
+  planPayments.reverse(); subs.reverse();
+  return { subs, planPayments, ops, payments, balance: bal, storage, employees, bankOps };
 }
 
 export const fmtSum = (n: number) => `${n < 0 ? '−' : n > 0 ? '+' : ''}${Math.abs(n).toLocaleString('ru-RU')} сум`;

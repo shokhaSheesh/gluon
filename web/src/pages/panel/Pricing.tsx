@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { moveItem, useDragList } from '../../components/useDragList';
 import { ConfirmModal, Field, Input, Modal } from '../../components/ui';
 import { gbLabel, sum, useBilling, type Plan } from '../../lib/billing';
 import { useApp } from '../../lib/store';
 import '../user/billing.css';
+import './merchant/merchant.css';
 
 /** Gluon admin: Gluon plans (archive size, features, price). Service prices live on the services. */
 export default function Pricing() {
@@ -69,8 +71,11 @@ function PlanModal({ plan, onClose, onSave }: { plan: Plan | null; onClose: () =
 }
 
 function PlanForm({ plan, onClose, onSave }: { plan: Plan; onClose: () => void; onSave: (p: Plan) => void }) {
-  const [f, setF] = useState({ ...plan, featuresText: plan.features.join('\n') });
+  const [f, setF] = useState(plan);
+  const [feature, setFeature] = useState('');
   const [err, setErr] = useState('');
+  const { rowProps } = useDragList((from, to) => setF((x) => ({ ...x, features: moveItem(x.features, from, to) })));
+  const add = () => { const v = feature.trim(); if (!v || f.features.includes(v)) return; setF({ ...f, features: [...f.features, v] }); setFeature(''); };
   return (
     <div className="col gap-16" style={{ padding: 24 }}>
       <Field label="Название" error={err}><Input value={f.name} placeholder="Например: Бизнес" onChange={(e) => setF({ ...f, name: e.target.value })} error={!!err} /></Field>
@@ -78,8 +83,25 @@ function PlanForm({ plan, onClose, onSave }: { plan: Plan; onClose: () => void; 
         <div className="grow"><Field label="Хранилище"><Input value={String(f.gb)} inputMode="numeric" onChange={(e) => setF({ ...f, gb: Number(e.target.value.replace(/\D/g, '')) })} suffixBox="GB" /></Field></div>
         <div className="grow"><Field label="Цена в месяц"><Input value={f.price.toLocaleString('ru-RU')} inputMode="numeric" onChange={(e) => setF({ ...f, price: Number(e.target.value.replace(/\D/g, '')) })} suffixBox="сум" /></Field></div>
       </div>
-      <Field label="Возможности" hint="Каждая с новой строки">
-        <textarea className="textarea" value={f.featuresText} onChange={(e) => setF({ ...f, featuresText: e.target.value })} placeholder={'1 TB в Gluon Архиве\nДо 10 сервисов'} />
+      <Field label="Возможности">
+        <div className="col gap-8">
+          {f.features.length > 0 && (
+            <ul className="pf-features">
+              {f.features.map((x, i) => (
+                <li key={x} {...rowProps(i)}>
+                  <GripVertical size={14} className="bn-grip" />
+                  <span className="pf-dot" />
+                  <span className="grow">{x}</span>
+                  <button type="button" className="icon-btn sm" onClick={() => setF({ ...f, features: f.features.filter((_, j) => j !== i) })} aria-label="Удалить"><X size={14} /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="row gap-8">
+            <Input className="grow" value={feature} onChange={(e) => setFeature(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} placeholder="Например: 1 TB в Gluon Архиве" />
+            <button type="button" className="btn btn-secondary" onClick={add} disabled={!feature.trim()}><Plus size={16} /> Добавить</button>
+          </div>
+        </div>
       </Field>
       <div className="row gap-20">
         <label className="checkbox"><input type="checkbox" checked={!!f.popular} onChange={(e) => setF({ ...f, popular: e.target.checked })} /> Отметить как «Популярный»</label>
@@ -89,8 +111,7 @@ function PlanForm({ plan, onClose, onSave }: { plan: Plan; onClose: () => void; 
         <button className="btn btn-secondary grow" onClick={onClose}>Отмена</button>
         <button className="btn btn-primary grow" onClick={() => {
           if (!f.name.trim()) { setErr('Введите название'); return; }
-          const { featuresText, ...rest } = f;
-          onSave({ ...rest, features: featuresText.split('\n').map((x) => x.trim()).filter(Boolean) });
+          onSave({ ...f, name: f.name.trim() });
         }}>Сохранить</button>
       </div>
     </div>
