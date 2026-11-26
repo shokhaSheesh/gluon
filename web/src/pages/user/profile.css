@@ -1,0 +1,24 @@
+.pm { display: flex; min-height: 560px; }
+.pm-side { width: 220px; flex-shrink: 0; background: var(--surface-2); border-right: 1px solid var(--border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; border-radius: 16px 0 0 16px; }
+.pm-link { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; border: none; background: none; color: var(--text-2); font-size: 15px; text-align: left; }
+.pm-link:hover { background: var(--surface-3); }
+.pm-link.active { background: var(--surface-3); color: var(--text); font-weight: 500; }
+.pm-link.danger { color: var(--error); }
+.pm-body { flex: 1; min-width: 0; padding: 24px 28px; display: flex; flex-direction: column; }
+.pm-form { margin-top: 20px; max-width: 400px; }
+.pm-foot { margin-top: auto; padding-top: 24px; display: flex; justify-content: flex-end; gap: 12px; }
+.pm-row { padding: 12px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+.pm-balance { margin-top: 16px; padding: 20px; border-radius: 12px; background: var(--primary-soft); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.pm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+.pm-bank { border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.pm-bank .btn { align-self: flex-start; }
+.pm-lang { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 15px; }
+.pm-lang.active { border-color: var(--primary); background: var(--primary-soft); }
+.cb { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; }
+.cb i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; opacity: .9; }
+@media (max-width: 760px) {
+  .pm { flex-direction: column; }
+  .pm-side { width: 100%; flex-direction: row; overflow-x: auto; border-radius: 16px 16px 0 0; border-right: none; border-bottom: 1px solid var(--border); }
+  .pm-link { white-space: nowrap; }
+}
+.pm-acc { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; }

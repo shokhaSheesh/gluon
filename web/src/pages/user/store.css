@@ -1,0 +1,22 @@
+.st-offers { overflow: hidden; margin-top: 16px; }
+.st-track { display: flex; gap: 16px; transition: transform .35s ease; }
+.st-offer { flex: 0 0 calc(25% - 12px); min-width: 260px; height: 190px; border-radius: 14px; padding: 14px; color: #fff; display: flex; flex-direction: column; justify-content: space-between; }
+.st-offer-title { font-size: 20px; font-weight: 700; line-height: 1.2; text-align: center; }
+.st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; }
+.st-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.st-desc { flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 54px; }
+.st-btn { margin-top: 8px; }
+.st-btn.connected { color: var(--error); }
+.st-btn.review { color: var(--warning); }
+.st-locked { align-items: center; justify-content: center; }
+.st-lock { width: 52px; height: 52px; border-radius: 50%; background: var(--text-2); color: var(--surface); display: flex; align-items: center; justify-content: center; }
+.st-offer .brand-mark.img { background: #fff; padding: 3px; }
+.st-btn.link { color: #fff; }
+.st-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-3); }
+.st-steps li.on { color: var(--text); font-weight: 500; }
+
+@media (max-width: 768px) {
+  .st-offers { overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .st-track { transform: none !important; }
+  .st-offer { flex: 0 0 82%; scroll-snap-align: start; }
+}

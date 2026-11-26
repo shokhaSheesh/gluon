@@ -1,0 +1,14 @@
+.bk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; margin-top: 20px; }
+.bk-card { border: 1px solid var(--border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 14px; background: var(--surface); transition: border-color .15s, box-shadow .15s; }
+.bk-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-lg); }
+.gap-10 { gap: 10px; }
+.bk-terms { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 14px; }
+.bk-terms dt { color: var(--text-3); }
+.bk-terms dd { margin: 0; font-weight: 600; text-align: right; white-space: nowrap; }
+.bk-perk { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--success); background: var(--success-soft); padding: 6px 10px; border-radius: 8px; flex: 1; align-items: flex-start; }
+.bk-perk svg { flex-shrink: 0; margin-top: 2px; }
+.bk-done { width: 60px; height: 60px; border-radius: 50%; background: var(--success-soft); color: var(--success); display: flex; align-items: center; justify-content: center; }
+.bk-logo { height: 24px; display: flex; align-items: center; }
+.bk-logo .wordmark img { max-width: 100%; }
+.bk-terms { grid-template-columns: 1fr auto; }
+.bk-terms dt { white-space: nowrap; }
