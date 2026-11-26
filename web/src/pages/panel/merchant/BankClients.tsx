@@ -49,7 +49,7 @@ export default function BankClients() {
         <div className="row gap-12">
           <button className="btn btn-secondary" onClick={() => {
             downloadXlsx(`${bank}-clients.xlsx`, 'Клиенты', ['Компания', 'ИНН', 'Владелец', 'Телефон', 'Категория', 'Адрес', 'Как пришёл', 'Счетов', 'Сервисов', 'Дата регистрации', 'Последний вход', 'Статус'],
-              rows.map((c) => [c.company, c.inn, c.owner, formatPhone(c.phone), c.category, c.address, JOINED_LABEL[c.joined], (c.accounts ?? []).filter((a) => a.status === 'active').length, Object.keys(c.services).length, c.registered, c.lastActive ?? 'Не входил', c.blocked ? 'Заблокирована' : 'Активна']));
+              rows.map((c) => [c.company, c.inn, c.owner, formatPhone(c.phone), c.category, c.address, JOINED_LABEL[c.joined], (c.accounts ?? []).filter((a) => a.status === 'active' && (a.bank ?? c.channel) === bank).length, Object.keys(c.services).length, c.registered, c.lastActive ?? 'Не входил', c.blocked ? 'Заблокирована' : 'Активна']));
             toast('success', `Выгружено клиентов: ${rows.length}`);
           }}><Download size={16} /> Экспорт в Excel</button>
           <button className="btn btn-primary" onClick={() => setCreate(true)}><UserPlus size={16} /> Создать клиента</button>
@@ -99,7 +99,7 @@ export default function BankClients() {
                   <td style={{ whiteSpace: 'nowrap' }}>{formatPhone(c.phone)}</td>
                   <td>{c.category}</td>
                   <td>{c.joined === 'bank' ? <Badge kind="primary">{JOINED_LABEL.bank}</Badge> : <Badge kind="neutral">{JOINED_LABEL.self}</Badge>}</td>
-                  <td>{(c.accounts ?? []).filter((a) => a.status === 'active').length}</td>
+                  <td>{(c.accounts ?? []).filter((a) => a.status === 'active' && (a.bank ?? c.channel) === bank).length}</td>
                   <td>{Object.keys(c.services).length}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.lastActive ?? <span className="muted">Не входил</span>}</td>
                 </tr>

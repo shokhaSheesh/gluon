@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { ArrowLeftRight, ListTree, FileText, GalleryHorizontal, CalendarCheck, Handshake, Landmark, Repeat, Tags, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
+import { ArrowLeftRight, HardDrive, ListTree, FileText, GalleryHorizontal, CalendarCheck, Handshake, Landmark, Repeat, Tags, History, PanelLeftClose, PanelLeftOpen, CreditCard, Palette, LayoutGrid, LogOut, Building2, MessagesSquare, Users, Blocks, Link2, UserCog, KeyRound, User, X } from 'lucide-react';
 import { Badge, ConfirmModal, Field, Input, LangSelect, Logo, Modal, PasswordInput, PhoneInput, ThemeToggle } from '../components/ui';
 import { useApp, type Platform } from '../lib/store';
 import { chatContactIds, currentActor, orgOf, useMerchant, type Employee } from '../lib/merchant';
@@ -40,6 +40,7 @@ export default function PanelLayout({ platform }: { platform: Exclude<Platform, 
       { to: `${base}/companies`, label: t('companies'), icon: <Building2 size={20} /> },
       { to: `${base}/subscriptions`, label: 'Подписки', icon: <Repeat size={20} /> },
       { to: `${base}/account-requests`, label: 'Заявки на счёт', icon: <FileText size={20} />, badge: newAccReq },
+      { to: `${base}/storage`, label: 'Хранилище', icon: <HardDrive size={20} /> },
     ] },
     { title: 'Финансы', links: [
       { to: `${base}/payments`, label: 'Платежи', icon: <CreditCard size={20} /> },

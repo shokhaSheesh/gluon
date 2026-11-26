@@ -48,7 +48,8 @@ export interface CompanyBlock { reason: string; note: string; at: string; by: st
 export const BLOCK_REASONS = ['Подозрительная активность', 'Задолженность перед банком', 'Закрытие расчётного счёта', 'По запросу клиента', 'Другое'];
 
 /** Расчётный счёт opened by the bank for its client (shown in the client's profile → «Банк аккаунт»). */
-export interface ClientAccount { id: string; number: string; currency: 'UZS' | 'USD'; name: string; opened: string; status: 'active' | 'closed'; closed?: string }
+/** source: who added it — the client's bank (opened it), the company itself (in its profile) or Gluon admin. */
+export interface ClientAccount { id: string; bank?: string; source?: 'bank' | 'user' | 'admin'; number: string; currency: 'UZS' | 'USD'; name: string; opened: string; status: 'active' | 'closed'; closed?: string }
 
 const MFO: Record<string, string> = { kapital: '01158', hayot: '01183' };
 /** 20-digit account number: 20208 (settlement) + currency code + bank MFO + 7 digits. */
@@ -140,8 +141,8 @@ function genClients(): Client[] {
       plan: PLANS[i % PLANS.length],
       services,
       accounts: channel !== 'gluon' ? [
-        { id: `acc-${i}-1`, number: genAccountNumber(channel, 'UZS', 1_000_003 + i * 7_919), currency: 'UZS', name: 'Основной счёт', opened: dateFrom(i, 6 + (i % 6)), status: 'active' },
-        ...(i % 3 === 0 ? [{ id: `acc-${i}-2`, number: genAccountNumber(channel, 'USD', 2_000_011 + i * 3_571), currency: 'USD' as const, name: 'Валютный счёт', opened: dateFrom(i + 2, 7 + (i % 5)), status: (i % 2 ? 'closed' : 'active') as 'active' | 'closed', closed: i % 2 ? '10.11.2026' : undefined }] : []),
+        { id: `acc-${i}-1`, bank: channel, source: 'bank' as const, number: genAccountNumber(channel, 'UZS', 1_000_003 + i * 7_919), currency: 'UZS', name: 'Основной счёт', opened: dateFrom(i, 6 + (i % 6)), status: 'active' },
+        ...(i % 3 === 0 ? [{ id: `acc-${i}-2`, bank: channel, source: 'bank' as const, number: genAccountNumber(channel, 'USD', 2_000_011 + i * 3_571), currency: 'USD' as const, name: 'Валютный счёт', opened: dateFrom(i + 2, 7 + (i % 5)), status: (i % 2 ? 'closed' : 'active') as 'active' | 'closed', closed: i % 2 ? '10.11.2026' : undefined }] : []),
       ] : undefined,
       credentials: { login: `9${(i * 37) % 10}${String(1_000_000 + ((i * 912_773) % 8_999_999)).slice(0, 7)}`, password: `client${100 + i}` },
     };
@@ -157,19 +158,23 @@ function genClients(): Client[] {
     id: `c-kb-${k + 1}`, company, inn: String(311_200_100 + k * 7_313), owner, phone, address: `Ташкент, ${STREETS[(k + 3) % STREETS.length]}`, category,
     channel: 'kapital', joined, registered, plan: 'base', credentials: { login: phone, password: `client${200 + k}` },
     ...(k === 0 ? { blocked: true, block: { reason: 'Задолженность перед банком', note: 'Просрочка по кредитной линии более 60 дней. Разблокируем после погашения.', at: '20.11.2026 15:40', by: 'Нигора Ахмедова', org: 'kapital' } } : {}),
-    accounts: k === 2 ? [] : [{ id: `acc-kb-${k}`, number: genAccountNumber('kapital', 'UZS', 3_000_017 + k * 4_111), currency: 'UZS' as const, name: 'Основной счёт', opened: registered, status: 'active' as const }],
+    accounts: k === 2 ? [] : [{ id: `acc-kb-${k}`, bank: 'kapital', source: 'bank' as const, number: genAccountNumber('kapital', 'UZS', 3_000_017 + k * 4_111), currency: 'UZS' as const, name: 'Основной счёт', opened: registered, status: 'active' as const }],
     services: Object.fromEntries(svcs.map((sv) => [sv, { status: 'active' as const, since: registered, paidUntil: registered.replace('.11.', '.12.') }])),
   }));
   // the two demo users (Gluon User / Kapitalbank User) — same data as on the user side
   list.unshift(
-    { id: DEMO_CLIENT_ID, company: 'ООО “Прометей”', inn: '123456789', owner: 'Даулетмуратов Ахмет', phone: '901234567', address: 'Ташкент, пр. Амира Темура 129Б', category: 'Аксессуары', channel: 'gluon', joined: 'self', registered: '14.06.2026', plan: 'base',
+    { id: DEMO_CLIENT_ID, accounts: [
+        { id: 'acc-demo-hayot', bank: 'hayot', source: 'user', number: '20208000100123451234', currency: 'UZS', name: 'Основной счёт', opened: '20.06.2026', status: 'active' },
+        { id: 'acc-demo-kapital', bank: 'kapital', source: 'user', number: '20208000900987655678', currency: 'UZS', name: 'Эквайринг', opened: '02.07.2026', status: 'active' },
+      ], company: 'ООО “Прометей”', inn: '123456789', owner: 'Даулетмуратов Ахмет', phone: '901234567', address: 'Ташкент, пр. Амира Темура 129Б', category: 'Аксессуары', channel: 'gluon', joined: 'self', registered: '14.06.2026', plan: 'base',
       services: { robosell: { status: 'active', since: '10.09.2026', paidUntil: '10.12.2026' }, billz: { status: 'active', since: '10.08.2026', paidUntil: '10.12.2026' }, robohub: { status: 'unpaid', since: '20.10.2026', paidUntil: '20.11.2026' } } },
     { id: KAPITAL_CLIENT_ID, company: 'ООО “Sagadiev Trade”', inn: '305667788', owner: 'Сагадиев Алишер', phone: '909876543', address: 'Ташкент, ул. Навои 30', category: 'Электроника', channel: 'kapital', joined: 'bank', registered: '02.10.2026', plan: 'base',
       services: { billz: { status: 'active', since: '05.10.2026', paidUntil: '05.12.2026' }, robosell: { status: 'active', since: '05.10.2026', paidUntil: '05.12.2026' } },
       credentials: { login: '909876543', password: 'kapital123' },
       accounts: [
-        { id: 'acc-kb-main', number: '20208000900987655678', currency: 'UZS', name: 'Основной счёт', opened: '02.10.2026', status: 'active' },
-        { id: 'acc-kb-usd', number: '20208840001158004321', currency: 'USD', name: 'Валютный счёт', opened: '15.10.2026', status: 'active' },
+        { id: 'acc-kb-main', bank: 'kapital', source: 'bank', number: '20208000900987655678', currency: 'UZS', name: 'Основной счёт', opened: '02.10.2026', status: 'active' },
+        { id: 'acc-kb-usd', bank: 'kapital', source: 'bank', number: '20208840001158004321', currency: 'USD', name: 'Валютный счёт', opened: '15.10.2026', status: 'active' },
+        { id: 'acc-kb-hayot', bank: 'hayot', source: 'user', number: '20208000100123451234', currency: 'UZS', name: 'Основной счёт', opened: '20.10.2026', status: 'active' },
       ] },
   );
   // last sign-in: most clients are active, some went quiet, a few bank-created ones never signed in
@@ -280,7 +285,7 @@ interface MerchantState extends MerchantData {
 }
 
 const Ctx = createContext<MerchantState | null>(null);
-const KEY = 'gluon.merchant.v13';
+const KEY = 'gluon.merchant.v14';
 const today = () => new Date().toLocaleDateString('ru-RU');
 
 export function MerchantProvider({ children }: { children: ReactNode }) {
@@ -418,7 +423,7 @@ export interface Team { roles: Role[]; employees: Employee[] }
 
 export const PAGES: Record<OrgKind, { id: string; label: string }[]> = {
   admin: [
-    { id: 'dashboard', label: 'Дашборд' }, { id: 'companies', label: 'Компании' }, { id: 'subscriptions', label: 'Подписки' }, { id: 'account-requests', label: 'Заявки на счёт' },
+    { id: 'dashboard', label: 'Дашборд' }, { id: 'companies', label: 'Компании' }, { id: 'subscriptions', label: 'Подписки' }, { id: 'account-requests', label: 'Заявки на счёт' }, { id: 'storage', label: 'Хранилище' },
     { id: 'payments', label: 'Платежи' }, { id: 'operations', label: 'Операции' }, { id: 'pricing', label: 'Тарифы' },
     { id: 'partners', label: 'Партнёры' }, { id: 'services', label: 'Сервисы' }, { id: 'banks', label: 'Банки' }, { id: 'bank-products', label: 'Продукты банков' }, { id: 'banners', label: 'Баннеры' },
     { id: 'chat', label: 'Чат' }, { id: 'team', label: 'Сотрудники и роли' }, { id: 'audit', label: 'Журнал действий' },

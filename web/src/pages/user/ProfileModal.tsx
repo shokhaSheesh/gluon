@@ -176,21 +176,19 @@ function PasswordForm({ onClose }: { onClose: () => void }) {
 
 function BankAccounts() {
   const { toast, session } = useApp();
-  const [accounts, setAccounts] = useState(ACCOUNTS);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ bank: '', number: '', name: '' });
   const [err, setErr] = useState<Record<string, string>>({});
   const [del, setDel] = useState<string | null>(null);
-  const { accountRequests, clients } = useMerchant();
+  const { accountRequests, clients, updateClient } = useMerchant();
   const myId = session?.kind === 'bank' ? KAPITAL_CLIENT_ID : DEMO_CLIENT_ID;
-  // accounts the partner bank opened for this client (managed in the bank cabinet, read-only here)
-  const fromBank = session?.kind === 'bank' && session.orgId
-    ? (clients.find((c) => c.id === myId)?.accounts ?? []).filter((a) => a.status === 'active').map((a) => {
-        const known = ACCOUNTS.find((x) => x.number === a.number);
-        return { id: a.id, bank: session.orgId!, number: a.number, name: `${a.name} · ${a.currency}`, lastStatement: known?.lastStatement ?? '—', ops: known?.ops ?? 0, byBank: true };
-      })
-    : [];
-  const list = [...fromBank, ...accounts.filter((a) => !fromBank.some((b) => b.number === a.number || b.bank === a.bank)).map((a) => ({ ...a, byBank: false }))];
+  const me = clients.find((c) => c.id === myId);
+  // one list shared with admin and the bank cabinet; accounts opened by the bank / added by Gluon can't be removed here
+  const list = (me?.accounts ?? []).filter((a) => a.status === 'active').map((a) => {
+    const known = ACCOUNTS.find((x) => x.number === a.number);
+    return { id: a.id, bank: a.bank ?? me?.channel ?? 'hayot', number: a.number, name: `${a.name}${a.currency === 'USD' ? ' · USD' : ''}`, lastStatement: known?.lastStatement ?? '—', ops: known?.ops ?? 0, source: a.source ?? 'bank' };
+  });
+  const setAccounts = (fn: (l: NonNullable<typeof me>['accounts'] & object) => NonNullable<typeof me>['accounts']) => { if (me) updateClient(me.id, { accounts: fn(me.accounts ?? []) }); };
   const requests = accountRequests.filter((r) => r.clientId === myId);
   const bank = (id: string) => BANKS.find((b) => b.id === id)!;
 
@@ -216,7 +214,8 @@ function BankAccounts() {
           if (f.number.length !== 20) e.number = 'Номер счёта должен содержать 20 цифр';
           setErr(e);
           if (Object.keys(e).length) return;
-          setAccounts((l) => [...l, { id: `acc-${Date.now()}`, bank: f.bank, number: f.number, name: f.name || 'Расчётный счёт', lastStatement: '—', ops: 0 }]);
+          if ((me?.accounts ?? []).some((a) => a.number === f.number && a.status === 'active')) { setErr({ number: 'Этот счёт уже добавлен' }); return; }
+          setAccounts((l) => [...l, { id: `acc-${Date.now()}`, bank: f.bank, source: 'user', number: f.number, currency: f.number.slice(5, 8) === '840' ? 'USD' : 'UZS', name: f.name || 'Расчётный счёт', opened: new Date().toLocaleDateString('ru-RU'), status: 'active' }]);
           setAdding(false); setF({ bank: '', number: '', name: '' });
           toast('success', 'Счёт добавлен');
         }} />
@@ -238,12 +237,12 @@ function BankAccounts() {
             <div key={a.id} className="pm-acc">
               <BrandMark name={b.name} color={b.color} text={b.mark} size={40} />
               <div className="grow">
-                <p className="medium">{a.name} <span className="muted t-sm">· {b.name}</span>{a.byBank && <span className="badge badge-primary" style={{ marginLeft: 8 }}>Открыт банком</span>}</p>
+                <p className="medium">{a.name} <span className="muted t-sm">· {b.name}</span>{a.source === 'bank' && <span className="badge badge-primary" style={{ marginLeft: 8 }}>Открыт банком</span>}{a.source === 'admin' && <span className="badge badge-neutral" style={{ marginLeft: 8 }}>Добавлен Gluon</span>}</p>
                 <p className="t-sm" style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}>{maskAccount(a.number)}</p>
                 <p className="t-xs muted">{a.ops ? `Последняя выписка: ${a.lastStatement} · ${a.ops} операций` : 'Выписки ещё не загружались'}</p>
               </div>
               <a className="btn btn-soft btn-sm" href="/app/operations"><Upload size={14} /> Загрузить выписку</a>
-              {!a.byBank && <button className="icon-btn sm" onClick={() => setDel(a.id)} aria-label="delete"><Trash2 size={14} color="var(--error)" /></button>}
+              {a.source === 'user' && <button className="icon-btn sm" onClick={() => setDel(a.id)} aria-label="delete"><Trash2 size={14} color="var(--error)" /></button>}
             </div>
           );
         })}

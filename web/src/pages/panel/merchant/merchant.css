@@ -166,3 +166,5 @@
 .pf-features li[data-drag='dragging'] { opacity: .4; }
 .pf-features li[data-drag='over'] { border-color: var(--primary); }
 .pf-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
+.st-mini { display: flex; gap: 2px; height: 8px; border-radius: 99px; overflow: hidden; background: var(--surface-3); }
+.st-mini span { display: block; height: 100%; }

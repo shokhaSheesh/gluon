@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Ban, KeyRound, MessageSquare, Pencil, Phone, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
-import { Badge, BrandMark, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone } from '../../../components/ui';
-import { SERVICES } from '../../../data/mock';
+import { Badge, BankLogo, BrandMark, ConfirmModal, Field, Input, Modal, PhoneInput, Select, formatPhone } from '../../../components/ui';
+import { BANKS, SERVICES } from '../../../data/mock';
 import { BLOCK_REASONS, CATEGORIES, CHANNEL_LABEL, currentActor, genAccountNumber, initials, paidUntilOf, useMerchant, type Client, type ClientAccount } from '../../../lib/merchant';
 import { maskAccount } from '../../../data/operations';
 import { useApp } from '../../../lib/store';
@@ -44,6 +44,8 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
       </div>
     );
   }
+  // a bank sees only accounts at this bank; admin sees all
+  const accs = (c.accounts ?? []).filter((a) => admin || (a.bank ?? c.channel) === bank);
   const services = Object.entries(c.services).map(([sid, s]) => ({ svc: SERVICES.find((x) => x.id === sid), sid, ...s }));
 
   const overview = (
@@ -81,24 +83,25 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
 
       <section className="card" style={{ overflow: 'hidden' }}>
         <div className="row between" style={{ padding: '14px 18px' }}>
-          <h3 className="medium">Расчётные счета <span className="muted t-sm">{(c.accounts ?? []).filter((a) => a.status === 'active').length}</span></h3>
-          {!admin && <button className="btn btn-primary btn-sm" onClick={() => setOpenAcc(true)} disabled={c.blocked}><Plus size={14} /> Открыть счёт</button>}
+          <h3 className="medium">Расчётные счета <span className="muted t-sm">{accs.filter((a) => a.status === 'active').length}</span></h3>
+          <button className="btn btn-primary btn-sm" onClick={() => setOpenAcc(true)} disabled={c.blocked}><Plus size={14} /> {admin ? 'Добавить счёт' : 'Открыть счёт'}</button>
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Счёт</th><th>Номер</th><th>Валюта</th><th>Открыт</th><th>Статус</th><th /></tr></thead>
+            <thead><tr><th>Счёт</th>{admin && <th>Банк</th>}<th>Номер</th><th>Валюта</th><th>Открыт</th><th>Статус</th><th /></tr></thead>
             <tbody>
-              {(c.accounts ?? []).map((a) => (
+              {accs.map((a) => (
                 <tr key={a.id}>
-                  <td className="strong" style={{ color: 'var(--text)' }}>{a.name}</td>
+                  <td className="strong" style={{ color: 'var(--text)' }}>{a.name}{admin && a.source === 'user' && <span className="t-xs muted" style={{ display: 'block', fontWeight: 400 }}>добавлен компанией</span>}</td>
+                  {admin && <td><BankLogo id={a.bank ?? c.channel} name={BANKS.find((b) => b.id === (a.bank ?? c.channel))?.name ?? (a.bank ?? '')} height={16} /></td>}
                   <td className="mono-ish" style={{ fontFamily: 'ui-monospace, Menlo, monospace', whiteSpace: 'nowrap' }}>{a.number.replace(/(\d{4})(?=\d)/g, '$1 ')}</td>
                   <td>{a.currency}</td>
                   <td>{a.opened}</td>
                   <td>{a.status === 'active' ? <Badge kind="success">Активен</Badge> : <span className="row gap-6"><Badge kind="neutral">Закрыт</Badge><span className="t-xs muted">{a.closed}</span></span>}</td>
-                  <td style={{ textAlign: 'right' }}>{!admin && a.status === 'active' && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }} onClick={() => setCloseAcc(a)}>Закрыть</button>}</td>
+                  <td style={{ textAlign: 'right' }}>{a.status === 'active' && (admin || a.source !== 'user') && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--error)' }} onClick={() => setCloseAcc(a)}>Закрыть</button>}</td>
                 </tr>
               ))}
-              {!(c.accounts ?? []).length && <tr><td colSpan={6}><div className="empty-state">Счетов пока нет</div></td></tr>}
+              {!accs.length && <tr><td colSpan={6}><div className="empty-state">Счетов пока нет</div></td></tr>}
             </tbody>
           </table>
         </div>
@@ -172,9 +175,15 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
         }} />}
       </Modal>
       <CredentialsModal data={issued} onClose={() => setIssued(null)} />
-      <Modal open={openAcc} onClose={() => setOpenAcc(false)} title="Открыть расчётный счёт" width={460}>
-        {openAcc && <OpenAccountForm bank={bank} taken={m.clients.flatMap((x) => (x.accounts ?? []).map((a) => a.number))} onClose={() => setOpenAcc(false)} onSave={(a) => {
+      <Modal open={openAcc} onClose={() => setOpenAcc(false)} title={admin ? 'Добавить расчётный счёт' : 'Открыть расчётный счёт'} width={460}>
+        {openAcc && admin && <AdminAccountForm channel={c.channel} taken={m.clients.flatMap((x) => (x.accounts ?? []).filter((a) => a.status === 'active').map((a) => a.number))} onClose={() => setOpenAcc(false)} onSave={(a) => {
           m.updateClient(c.id, { accounts: [...(c.accounts ?? []), a] });
+          log('Добавил расчётный счёт', `${BANKS.find((b) => b.id === a.bank)?.name ?? a.bank} · ${a.currency} · ${maskAccount(a.number)}`);
+          toast('success', 'Счёт добавлен — компания увидит его в профиле');
+          setOpenAcc(false);
+        }} />}
+        {openAcc && !admin && <OpenAccountForm bank={bank} taken={m.clients.flatMap((x) => (x.accounts ?? []).map((a) => a.number))} onClose={() => setOpenAcc(false)} onSave={(a) => {
+          m.updateClient(c.id, { accounts: [...(c.accounts ?? []), { ...a, bank, source: 'bank' }] });
           m.log(bank, 'bank', { section: 'accounts', action: 'Открыл расчётный счёт', target: c.company, details: `${a.currency} · ${maskAccount(a.number)}` });
           toast('success', 'Счёт открыт');
           setOpenAcc(false);
@@ -185,7 +194,8 @@ export function ClientDetail({ admin }: { admin?: boolean }) {
           if (!closeAcc) return;
           const today = new Date().toLocaleDateString('ru-RU');
           m.updateClient(c.id, { accounts: (c.accounts ?? []).map((a) => (a.id === closeAcc.id ? { ...a, status: 'closed', closed: today } : a)) });
-          m.log(bank, 'bank', { section: 'accounts', action: 'Закрыл расчётный счёт', target: c.company, details: `${closeAcc.currency} · ${maskAccount(closeAcc.number)}` });
+          if (admin) log('Закрыл расчётный счёт', `${closeAcc.currency} · ${maskAccount(closeAcc.number)}`);
+          else m.log(bank, 'bank', { section: 'accounts', action: 'Закрыл расчётный счёт', target: c.company, details: `${closeAcc.currency} · ${maskAccount(closeAcc.number)}` });
           toast('success', 'Счёт закрыт');
           setCloseAcc(null);
         }} />
@@ -286,6 +296,40 @@ function BlockForm({ admin, company, onClose, onSave }: { admin?: boolean; compa
           if (reason === 'Другое' && note.trim().length < 5) { setErr('Опишите причину'); return; }
           onSave(reason, note.trim());
         }}>Заблокировать</button>
+      </div>
+    </div>
+  );
+}
+
+/** Admin records an existing account of the company (any bank; number typed as in the bank documents). */
+function AdminAccountForm({ channel, taken, onClose, onSave }: { channel: string; taken: string[]; onClose: () => void; onSave: (a: ClientAccount) => void }) {
+  const [f, setF] = useState({ bank: channel === 'gluon' ? '' : channel, number: '', currency: 'UZS' as 'UZS' | 'USD', name: 'Расчётный счёт' });
+  const [err, setErr] = useState<Record<string, string>>({});
+  return (
+    <div className="col gap-16" style={{ padding: 24 }}>
+      <Field label="Банк" error={err.bank}>
+        <Select value={f.bank} placeholder="Выберите банк" onChange={(v) => { setF({ ...f, bank: v }); setErr({}); }} error={!!err.bank}
+          options={BANKS.map((b) => ({ value: b.id, label: b.name, icon: <BrandMark name={b.name} color={b.color} text={b.mark} size={20} /> }))} />
+      </Field>
+      <Field label="Номер счёта" hint="20 цифр" error={err.number}>
+        <Input value={f.number.replace(/(\d{4})(?=\d)/g, '$1 ')} inputMode="numeric" placeholder="2020 8000 0000 0000 0000" error={!!err.number}
+          onChange={(e) => { const n = e.target.value.replace(/\D/g, '').slice(0, 20); setF({ ...f, number: n, currency: n.slice(5, 8) === '840' ? 'USD' : f.currency }); setErr({}); }} />
+      </Field>
+      <div className="row gap-12 tm-two">
+        <Field label="Валюта"><Select value={f.currency} onChange={(v) => setF({ ...f, currency: v as 'UZS' | 'USD' })} options={[{ value: 'UZS', label: 'UZS — сум' }, { value: 'USD', label: 'USD — доллар США' }]} /></Field>
+        <Field label="Название"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+      </div>
+      <div className="row gap-12">
+        <button className="btn btn-secondary grow" onClick={onClose}>Отмена</button>
+        <button className="btn btn-primary grow" onClick={() => {
+          const e: Record<string, string> = {};
+          if (!f.bank) e.bank = 'Выберите банк';
+          if (f.number.length !== 20) e.number = 'Номер счёта — 20 цифр';
+          else if (taken.includes(f.number)) e.number = 'Такой счёт уже есть в Gluon';
+          setErr(e);
+          if (Object.keys(e).length) return;
+          onSave({ id: `acc-${Date.now()}`, bank: f.bank, source: 'admin', number: f.number, currency: f.currency, name: f.name.trim() || 'Расчётный счёт', opened: new Date().toLocaleDateString('ru-RU'), status: 'active' });
+        }}>Добавить счёт</button>
       </div>
     </div>
   );
